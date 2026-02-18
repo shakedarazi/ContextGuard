@@ -91,6 +91,7 @@ Each recommendation is tailored to the node kind (load balancer, security group,
 For CRITICAL findings, the report includes contextual insights explaining why the finding is critical — not just what the misconfiguration is, but what the graph reveals:
 
 > **What you learned**
+>
 > - This finding is critical because it sits on a 3-hop path from the internet to a crown jewel.
 > - Applying controls at alb-web would break this attack path.
 
@@ -98,11 +99,11 @@ For CRITICAL findings, the report includes contextual insights explaining why th
 
 Exit codes designed for CI pipelines:
 
-| Code | Meaning |
-|------|---------|
-| 0 | Passed |
-| 1 | Security gate breached |
-| 2 | Input error |
+| Code | Meaning                |
+| ---- | ---------------------- |
+| 0    | Passed                 |
+| 1    | Security gate breached |
+| 2    | Input error            |
 
 Override gating at runtime:
 
@@ -112,11 +113,11 @@ contextguard analyze --plan tfplan.json --fail-on critical,high
 
 ## Supported Resources (v1)
 
-| Category | Resources |
-|----------|-----------|
-| Networking | `aws_security_group`, `aws_lb`, `aws_instance`, `aws_autoscaling_group` |
-| Data | `aws_db_instance` |
-| IAM | `aws_iam_role`, `aws_iam_policy`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`, `aws_iam_policy_attachment` |
+| Category   | Resources                                                                                                              |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Networking | `aws_security_group`, `aws_lb`, `aws_instance`, `aws_autoscaling_group`                                                |
+| Data       | `aws_db_instance`                                                                                                      |
+| IAM        | `aws_iam_role`, `aws_iam_policy`, `aws_iam_role_policy`, `aws_iam_role_policy_attachment`, `aws_iam_policy_attachment` |
 
 Unknown resources are safely skipped and counted.
 
@@ -143,13 +144,13 @@ Configuration is optional. Sensible defaults are applied when no config file is 
 contextguard analyze --plan <path> [--config <path>] [--out <dir>] [--fail-on <severities>] [--verbose]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--plan` | Path to Terraform plan JSON (required) |
-| `--config` | Path to contextguard.yml |
-| `--out` | Output directory for reports (default: `.`) |
+| Option      | Description                                              |
+| ----------- | -------------------------------------------------------- |
+| `--plan`    | Path to Terraform plan JSON (required)                   |
+| `--config`  | Path to contextguard.yml                                 |
+| `--out`     | Output directory for reports (default: `.`)              |
 | `--fail-on` | Comma-separated severities to gate on (case-insensitive) |
-| `--verbose` | Enable debug logging |
+| `--verbose` | Enable debug logging                                     |
 
 ## Development
 
@@ -160,6 +161,127 @@ uv run mypy contextguard/
 uv run pytest --tb=short
 ```
 
-## License
+1️⃣ README – Concise, Product-Focused, Impact-Oriented
 
-MIT
+Below is a clean, professional README draft. It is intentionally tight, product-driven, and positioned for Cloud Security / Platform roles.
+
+ContextGuard
+
+IaC Attack Path Prioritizer for Terraform
+
+ContextGuard analyzes a Terraform plan and answers a question traditional IaC scanners do not:
+
+Can an attacker actually reach this misconfiguration from the internet — and pivot to something critical?
+
+Instead of flagging issues in isolation, ContextGuard builds a reachability graph, calculates shortest attack paths from the public internet, and prioritizes findings based on real exploitability. It then recommends the exact control point to break the attack chain.
+
+Why ContextGuard Is Different
+
+Most IaC scanners:
+
+Flag misconfigurations independently
+
+Ignore graph context
+
+Treat all HIGH findings equally
+
+ContextGuard:
+
+Builds a full infrastructure graph from terraform show -json
+
+Performs BFS reachability from a sentinel INTERNET node
+
+Scores findings based on proximity to crown jewels
+
+Recommends concrete breakpoints (network / identity / data)
+
+Explains why a finding is critical via attack path context
+
+Example
+INTERNET → alb-web → i-web01 → sg-backend → db-prod
+
+A security group open to 0.0.0.0/0 is not inherently critical.
+
+It becomes CRITICAL when it sits 3 hops away from a production database.
+
+ContextGuard tells you:
+
+The shortest attack path
+
+The contextual severity
+
+The first choke point to fix
+
+What you learned from the graph
+
+Core Features
+
+Deterministic graph engine (BFS from single sentinel node)
+
+Contextual severity override (4-rule scoring model)
+
+Deterministic IAM crown-jewel impact analysis
+
+Kind-specific breakpoint recommendations
+
+Byte-deterministic JSON output (CI-safe)
+
+Clean exit codes (0 / 1 / 2)
+
+Strict typing (Python 3.11, mypy strict, Pydantic v2)
+
+64 passing tests, ruff-clean, mypy-clean
+
+Installation
+pipx install .
+
+Or:
+
+uv tool install .
+
+Usage
+terraform show -json tfplan > tfplan.json
+contextguard analyze --plan tfplan.json
+
+CI example:
+
+contextguard analyze --plan tfplan.json --fail-on critical,high
+
+Exit codes:
+
+0 → passed gating
+
+1 → findings exceeded threshold
+
+2 → input or configuration error
+
+Architecture
+Terraform Plan → Adapter → Graph → Findings → Scoring → Reports
+
+The core engine is provider-agnostic. Only the Terraform adapter understands AWS resources.
+
+Design Principles
+
+Deterministic outputs
+
+No network calls
+
+No runtime cloud access
+
+No heuristics or AI guessing
+
+Minimal surface area (11 source modules)
+
+Clean separation: Adapter → Graph → Analysis → Reporting
+
+Roadmap
+
+SARIF export
+
+Multi-provider adapters
+
+CloudFormation & Kubernetes adapters
+
+Extended IAM action families
+
+ContextGuard turns IaC scanning from a checklist into an attack-path reasoning engine.

@@ -1,0 +1,28 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.5.0",
+  "resource_changes": [
+    {
+      "address": "azurerm_virtual_network.main",
+      "type": "azurerm_virtual_network",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "main-vnet",
+          "address_space": ["10.0.0.0/16"]
+        }
+      }
+    },
+    {
+      "address": "azurerm_storage_account.data",
+      "type": "azurerm_storage_account",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "datastorageacct",
+          "account_tier": "Standard"
+        }
+      }
+    }
+  ]
+}

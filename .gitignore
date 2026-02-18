@@ -8,6 +8,7 @@ coverage/
 internal/
 *.log
 *.egg-info/
+docs/verification/
 dist/
 BUILD_PLAN.md
 PROJECT_CONSTITUTION.md

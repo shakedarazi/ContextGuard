@@ -1,0 +1,28 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.5.0",
+  "resource_changes": [
+    {
+      "address": "google_compute_instance.web",
+      "type": "google_compute_instance",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "web-vm",
+          "machine_type": "e2-medium"
+        }
+      }
+    },
+    {
+      "address": "google_sql_database_instance.primary",
+      "type": "google_sql_database_instance",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "primary-sql",
+          "database_version": "POSTGRES_15"
+        }
+      }
+    }
+  ]
+}
