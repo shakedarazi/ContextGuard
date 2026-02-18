@@ -1,0 +1,46 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.5.0",
+  "resource_changes": [
+    {
+      "address": "aws_lb.public",
+      "type": "aws_lb",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "public-alb",
+          "scheme": "internet-facing",
+          "security_groups": []
+        }
+      }
+    },
+    {
+      "address": "aws_s3_bucket.data",
+      "type": "aws_s3_bucket",
+      "change": {
+        "actions": ["create"],
+        "after": { "bucket": "data-bucket" }
+      }
+    },
+    {
+      "address": "aws_db_instance.main",
+      "type": "aws_db_instance",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "identifier": "main-db",
+          "engine": "mysql",
+          "publicly_accessible": true
+        }
+      }
+    },
+    {
+      "address": "aws_lambda_function.handler",
+      "type": "aws_lambda_function",
+      "change": {
+        "actions": ["create"],
+        "after": { "function_name": "handler" }
+      }
+    }
+  ]
+}

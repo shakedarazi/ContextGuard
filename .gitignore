@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+coverage/
+internal/
+*.log
+*.egg-info/
+dist/
+BUILD_PLAN.md
+PROJECT_CONSTITUTION.md

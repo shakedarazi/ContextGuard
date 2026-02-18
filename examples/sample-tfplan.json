@@ -1,0 +1,60 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.5.0",
+  "resource_changes": [
+    {
+      "address": "aws_security_group.web",
+      "type": "aws_security_group",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "web-sg",
+          "ingress": [
+            {
+              "from_port": 443,
+              "to_port": 443,
+              "protocol": "tcp",
+              "cidr_blocks": ["0.0.0.0/0"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "address": "aws_lb.web",
+      "type": "aws_lb",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "name": "web-alb",
+          "internal": false,
+          "security_groups": ["aws_security_group.web"]
+        }
+      }
+    },
+    {
+      "address": "aws_instance.web",
+      "type": "aws_instance",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "instance_type": "t3.micro",
+          "associate_public_ip_address": false,
+          "vpc_security_group_ids": ["aws_security_group.web"]
+        }
+      }
+    },
+    {
+      "address": "aws_db_instance.prod",
+      "type": "aws_db_instance",
+      "change": {
+        "actions": ["create"],
+        "after": {
+          "identifier": "prod-db",
+          "engine": "postgres",
+          "publicly_accessible": false
+        }
+      }
+    }
+  ]
+}

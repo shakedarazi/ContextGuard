@@ -1,0 +1,8 @@
+crown_jewels:
+  - kind: db_instance
+  - tag: "sensitivity=high"
+
+gating:
+  fail_on:
+    - CRITICAL
+  max_path_to_crown_jewel: 4

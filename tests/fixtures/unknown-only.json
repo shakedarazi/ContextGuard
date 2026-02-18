@@ -1,0 +1,22 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.5.0",
+  "resource_changes": [
+    {
+      "address": "aws_s3_bucket.logs",
+      "type": "aws_s3_bucket",
+      "change": {
+        "actions": ["create"],
+        "after": { "bucket": "my-logs" }
+      }
+    },
+    {
+      "address": "aws_sns_topic.alerts",
+      "type": "aws_sns_topic",
+      "change": {
+        "actions": ["create"],
+        "after": { "name": "alerts" }
+      }
+    }
+  ]
+}
