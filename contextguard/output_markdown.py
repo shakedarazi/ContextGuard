@@ -10,12 +10,15 @@ if TYPE_CHECKING:
 from contextguard.model import AnalysisResult, Finding, Severity
 
 
-def render_markdown(result: AnalysisResult, out_path: Path, gate_passed: bool) -> None:
-    """Write report.md to the given directory."""
+def render_markdown(
+    result: AnalysisResult, out_path: Path, gate_passed: bool, plan: Path
+) -> Path:
+    """Write report.md to the given directory and return the written path."""
     from pathlib import Path as _Path
 
     lines: list[str] = []
     lines.append("# ContextGuard Report\n")
+    lines.append(f"**Plan:** `{plan}`\n")
 
     _executive_summary(lines, result, gate_passed)
     _findings_section(lines, result)
@@ -24,7 +27,9 @@ def render_markdown(result: AnalysisResult, out_path: Path, gate_passed: bool) -
     _scope_section(lines, result)
 
     _Path(str(out_path)).mkdir(parents=True, exist_ok=True)
-    _Path(str(out_path), "report.md").write_text("\n".join(lines), encoding="utf-8")
+    out_file = _Path(str(out_path), "report.md")
+    out_file.write_text("\n".join(lines), encoding="utf-8")
+    return out_file
 
 
 def _executive_summary(lines: list[str], result: AnalysisResult, gate_passed: bool) -> None:

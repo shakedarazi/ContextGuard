@@ -11,17 +11,20 @@ if TYPE_CHECKING:
 from contextguard.model import AnalysisResult
 
 
-def render_json(result: AnalysisResult, out_path: Path) -> None:
-    """Write byte-deterministic report.json."""
+def render_json(result: AnalysisResult, out_path: Path, plan: Path) -> Path:
+    """Write byte-deterministic report.json and return the written path."""
     from pathlib import Path as _Path
 
     sorted_result = _sort_for_determinism(result)
     data = sorted_result.model_dump(mode="json")
+    data["plan"] = str(plan)
     _Path(str(out_path)).mkdir(parents=True, exist_ok=True)
-    _Path(str(out_path), "report.json").write_text(
+    out_file = _Path(str(out_path), "report.json")
+    out_file.write_text(
         json.dumps(data, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
+    return out_file
 
 
 def _sort_for_determinism(result: AnalysisResult) -> AnalysisResult:
