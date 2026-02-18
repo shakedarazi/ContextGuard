@@ -39,6 +39,11 @@ def build_graph(nodes: list[Node], edges: list[Edge]) -> Graph:
         if edge.from_id not in g.adjacency:
             g.adjacency[edge.from_id] = []
         g.adjacency[edge.from_id].append(edge.to_id)
+    
+    # Sort adjacency lists for deterministic BFS traversal
+    for node_id in g.adjacency:
+        g.adjacency[node_id].sort()
+    
     return g
 
 

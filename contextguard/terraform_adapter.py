@@ -611,7 +611,7 @@ def _derive_forward_edges(nodes: list[Node], edges: list[Edge]) -> None:
                         edge_emitted = True
                         break
 
-    # Instance → DB (DATA_ACCESS, HIGH or MEDIUM for cidr-open)
+    # Instance → DB (DATA_ACCESS, HIGH for SG-to-SG rules only)
     for inst in instances:
         inst_sg_set = set(node_sgs.get(inst.id, []))
         for db in dbs:
@@ -656,28 +656,48 @@ def _derive_forward_edges(nodes: list[Node], edges: list[Edge]) -> None:
                         edge_emitted = True
                         break
 
-                    cidr_blocks = rule.get("cidr_blocks", [])
-                    ipv6_blocks = rule.get("ipv6_cidr_blocks", [])
-                    cidr_open = (
-                        (isinstance(cidr_blocks, list) and "0.0.0.0/0" in cidr_blocks)
-                        or (isinstance(ipv6_blocks, list) and "::/0" in ipv6_blocks)
-                    )
-                    if cidr_open:
-                        edges.append(Edge(
-                            from_id=inst.id,
-                            to_id=db.id,
-                            type=EdgeType.DATA_ACCESS,
-                            meta={
-                                "confidence": "MEDIUM",
-                                "evidence": {
-                                    "kind": "cidr_open",
-                                    "dst_sg": db_sg,
-                                    "from_port": rule.get("from_port", 0),
-                                    "to_port": rule.get("to_port", 0),
-                                    "protocol": rule.get("protocol", "tcp"),
-                                    "db_port": db_port,
-                                },
+    # INTERNET → DB (NETWORK_EXPOSURE for CIDR-open rules)
+    for db in dbs:
+        db_port = _get_db_port(db)
+        if db_port is None:
+            continue
+        db_sgs_list = node_sgs.get(db.id, [])
+        edge_emitted = False
+        for db_sg in db_sgs_list:
+            if edge_emitted:
+                break
+            for rule in sg_ingress.get(db_sg, []):
+                port_ok = _port_in_range(
+                    db_port,
+                    rule.get("from_port", 0),
+                    rule.get("to_port", 0),
+                    rule.get("protocol", "tcp"),
+                )
+                if not port_ok:
+                    continue
+
+                cidr_blocks = rule.get("cidr_blocks", [])
+                ipv6_blocks = rule.get("ipv6_cidr_blocks", [])
+                cidr_open = (
+                    (isinstance(cidr_blocks, list) and "0.0.0.0/0" in cidr_blocks)
+                    or (isinstance(ipv6_blocks, list) and "::/0" in ipv6_blocks)
+                )
+                if cidr_open:
+                    edges.append(Edge(
+                        from_id=INTERNET_NODE_ID,
+                        to_id=db.id,
+                        type=EdgeType.NETWORK_EXPOSURE,
+                        meta={
+                            "confidence": "MEDIUM",
+                            "evidence": {
+                                "kind": "cidr_open",
+                                "dst_sg": db_sg,
+                                "from_port": rule.get("from_port", 0),
+                                "to_port": rule.get("to_port", 0),
+                                "protocol": rule.get("protocol", "tcp"),
+                                "db_port": db_port,
                             },
-                        ))
-                        edge_emitted = True
-                        break
+                        },
+                    ))
+                    edge_emitted = True
+                    break

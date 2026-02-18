@@ -93,6 +93,13 @@ class Node(BaseModel):
     meta: dict[str, object] | None = None
     canonical_actions: set[CanonicalAction] = Field(default_factory=set)
 
+    def model_dump(self, **kwargs):  # type: ignore[override]
+        """Override to ensure canonical_actions serializes deterministically."""
+        d = super().model_dump(**kwargs)
+        if "canonical_actions" in d and isinstance(d["canonical_actions"], set):
+            d["canonical_actions"] = sorted(d["canonical_actions"])
+        return d
+
 
 class Edge(BaseModel):
     from_id: str

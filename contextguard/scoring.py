@@ -5,13 +5,14 @@ from __future__ import annotations
 # ARCHITECTURAL BOUNDARY: This module must remain provider-agnostic.
 # Do not introduce provider-specific strings or assumptions about providers.
 # Depend only on canonical model types and graph relationships.
-from contextguard.graph import BfsResult, Graph, shortest_path
+from contextguard.graph import BfsResult, Graph, bfs, shortest_path
 from contextguard.model import (
     Breakpoint,
     BreakpointType,
     CanonicalAction,
     ContextGuardConfig,
     Finding,
+    FindingCategory,
     NodeCategory,
     Severity,
 )
@@ -62,10 +63,13 @@ def score_findings(
     """Apply contextual severity override and breakpoint recommendations."""
     crown_jewel_ids = _get_crown_jewel_ids(graph)
     scored: list[Finding] = []
+    
+    # Cache BFS results from nodes to avoid redundant traversals
+    bfs_cache: dict[str, BfsResult] = {}
 
     for finding in findings:
         f = finding.model_copy()
-        _apply_severity_override(f, bfs_result, graph, crown_jewel_ids)
+        _apply_severity_override(f, bfs_result, graph, crown_jewel_ids, bfs_cache)
         _apply_breakpoints(f, graph)
         scored.append(f)
 
@@ -85,6 +89,7 @@ def _apply_severity_override(
     bfs_result: BfsResult,
     graph: Graph,
     crown_jewel_ids: set[str],
+    bfs_cache: dict[str, BfsResult],
 ) -> None:
     node_id = finding.node_id
     is_reachable = node_id in bfs_result.reachable
@@ -94,24 +99,48 @@ def _apply_severity_override(
         finding.override_reason = "Not reachable from internet"
         return
 
-    best_path: list[str] = []
-    best_hops = float("inf")
+    # Compute path from INTERNET to finding node
+    path_to_node_result = shortest_path(bfs_result.parents, node_id)
+    path_to_node = path_to_node_result.path
+
+    # Get or compute BFS from finding node (with caching)
+    if node_id not in bfs_cache:
+        bfs_cache[node_id] = bfs(graph, node_id)
+    bfs_from_node = bfs_cache[node_id]
+
+    # Special handling for IAM findings with crown jewel impact
+    if finding.category == FindingCategory.IAM and _iam_impacts_crown_jewel(finding, graph):
+        best_cj_path: list[str] = []
+        best_cj_hops = float("inf")
+        
+        for cj_id in crown_jewel_ids:
+            cj_result = shortest_path(bfs_from_node.parents, cj_id)
+            if cj_result.path and cj_result.hops < best_cj_hops:
+                best_cj_hops = cj_result.hops
+                best_cj_path = cj_result.path
+        
+        if best_cj_path:
+            # Merge: INTERNET→...→node + node→...→crown_jewel
+            full_path = path_to_node + best_cj_path[1:]  # Skip duplicate node_id
+            finding.context_severity = Severity.CRITICAL
+            finding.override_reason = (
+                f"IAM policy with crown jewel impact actions, reachable path ({len(full_path) - 1} hops)"
+            )
+            finding.attack_path = full_path
+            finding.shortest_path_length = len(full_path) - 1
+            return
+
+    # For non-IAM or IAM without impact: compute path from node to crown jewel
+    best_cj_path: list[str] = []
+    best_cj_hops = float("inf")
+    
     for cj_id in crown_jewel_ids:
-        result = shortest_path(bfs_result.parents, cj_id)
-        if result.path and result.hops < best_hops:
-            best_hops = result.hops
-            best_path = result.path
+        cj_result = shortest_path(bfs_from_node.parents, cj_id)
+        if cj_result.path and cj_result.hops < best_cj_hops:
+            best_cj_hops = cj_result.hops
+            best_cj_path = cj_result.path
 
-    if finding.category.value == "iam" and best_path and _iam_impacts_crown_jewel(finding, graph):
-        finding.context_severity = Severity.CRITICAL
-        finding.override_reason = (
-            f"IAM policy with crown jewel impact actions, reachable path ({int(best_hops)} hops)"
-        )
-        finding.attack_path = best_path
-        finding.shortest_path_length = int(best_hops)
-        return
-
-    if not best_path:
+    if not best_cj_path:
         sev = finding.base_severity
         if _severity_rank(sev) < _severity_rank(Severity.HIGH):
             finding.context_severity = sev
@@ -120,9 +149,12 @@ def _apply_severity_override(
         finding.override_reason = "Reachable from internet but no path to crown jewel"
         return
 
-    hops = int(best_hops)
-    finding.attack_path = best_path
+    # Merge: INTERNET→...→node + node→...→crown_jewel
+    full_path = path_to_node + best_cj_path[1:]  # Skip duplicate node_id
+    hops = len(full_path) - 1
+    finding.attack_path = full_path
     finding.shortest_path_length = hops
+    
     if hops <= 3:
         finding.context_severity = Severity.CRITICAL
         finding.override_reason = f"Reachable crown jewel within {hops} hops"

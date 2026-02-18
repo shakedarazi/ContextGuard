@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contextguard.model import Edge, EdgeType, Node, NodeCategory, NodeFlags, NodeKind
+from contextguard.model import INTERNET_NODE_ID, Edge, EdgeType, Node, NodeCategory, NodeFlags, NodeKind
 from contextguard.terraform_adapter import _derive_forward_edges
 
 
@@ -150,7 +150,7 @@ class TestLBInstanceEdges:
 
 class TestInstanceDBEdges:
     def test_cidr_open_to_world_creates_edge(self) -> None:
-        """DB SG allows 0.0.0.0/0 on DB port → MEDIUM confidence edge."""
+        """DB SG allows 0.0.0.0/0 on DB port → NETWORK_EXPOSURE from INTERNET."""
         nodes = [
             _sg("sg.data", [_rule(5432, 5432, "tcp", cidr_blocks=["0.0.0.0/0"])]),
             _instance("inst.app", ["sg.app"]),
@@ -160,8 +160,10 @@ class TestInstanceDBEdges:
         edges: list[Edge] = []
         _derive_forward_edges(nodes, edges)
 
-        fwd = [e for e in edges if e.type == EdgeType.DATA_ACCESS and e.meta is not None]
+        fwd = [e for e in edges if e.type == EdgeType.NETWORK_EXPOSURE and e.meta is not None]
         assert len(fwd) == 1
+        assert fwd[0].from_id == INTERNET_NODE_ID
+        assert fwd[0].to_id == "db.prod"
         assert fwd[0].meta is not None
         assert fwd[0].meta["confidence"] == "MEDIUM"
         evidence = fwd[0].meta["evidence"]
