@@ -23,10 +23,10 @@ jobs:
         run: uv sync --dev
 
       - name: Lint
-        run: uv run ruff check contextguard/
-
+        run: uv run python -m ruff check contextguard/
+      
       - name: Type check
-        run: uv run mypy contextguard/
+        run: uv run python -m mypy contextguard/
 
       - name: Test
         run: uv run pytest --tb=short
