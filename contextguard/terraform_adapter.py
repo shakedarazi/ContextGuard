@@ -13,6 +13,7 @@ from contextguard.model import (
     INTERNET_NODE_ID,
     AdapterOutput,
     AdapterStats,
+    CanonicalAction,
     Edge,
     EdgeType,
     Node,
@@ -148,25 +149,63 @@ def _extract_resource(
     nodes: list[Node],
     edges: list[Edge],
 ) -> None:
-    if rc_type == "aws_security_group":
-        _extract_security_group(address, category, values, nodes, edges)
-    elif rc_type == "aws_lb":
-        _extract_load_balancer(address, category, values, nodes, edges)
-    elif rc_type == "aws_instance":
-        _extract_instance(address, category, values, nodes, edges)
-    elif rc_type == "aws_autoscaling_group":
-        _extract_autoscaling_group(address, category, nodes)
-    elif rc_type == "aws_db_instance":
-        _extract_db_instance(address, category, values, nodes, edges)
-    elif rc_type == "aws_iam_role":
-        _extract_iam_role(address, category, values, nodes)
-    elif rc_type in (
-        "aws_iam_policy",
-        "aws_iam_role_policy",
-        "aws_iam_role_policy_attachment",
-        "aws_iam_policy_attachment",
-    ):
-        _extract_iam_policy(address, category, values, rc, nodes, edges)
+    # Table-driven dispatch with explicit deterministic ordering
+    _EXTRACTORS: list[tuple[str, object]] = [
+        (
+            "aws_security_group",
+            lambda: _extract_security_group(address, category, values, nodes, edges),
+        ),
+        ("aws_lb", lambda: _extract_load_balancer(address, category, values, nodes, edges)),
+        ("aws_instance", lambda: _extract_instance(address, category, values, nodes, edges)),
+        ("aws_autoscaling_group", lambda: _extract_autoscaling_group(address, category, nodes)),
+        (
+            "aws_db_instance",
+            lambda: _extract_db_instance(address, category, values, nodes, edges),
+        ),
+        ("aws_iam_role", lambda: _extract_iam_role(address, category, values, nodes)),
+        (
+            "aws_iam_policy",
+            lambda: _extract_iam_policy(address, category, values, rc, nodes, edges),
+        ),
+        (
+            "aws_iam_role_policy",
+            lambda: _extract_iam_policy(address, category, values, rc, nodes, edges),
+        ),
+        (
+            "aws_iam_role_policy_attachment",
+            lambda: _extract_iam_policy(address, category, values, rc, nodes, edges),
+        ),
+        (
+            "aws_iam_policy_attachment",
+            lambda: _extract_iam_policy(address, category, values, rc, nodes, edges),
+        ),
+    ]
+    
+    # Iterate in stable list order
+    for expected_type, extractor in _EXTRACTORS:
+        if rc_type == expected_type:
+            extractor()  # type: ignore[operator]
+            return
+
+
+def _add_sg_associations(
+    address: str,
+    sg_field: str,
+    values: dict[str, Any],
+    edges: list[Edge],
+) -> list[str]:
+    """Extract and add security group associations from resource config.
+    
+    Returns sorted list of SG references for meta storage.
+    """
+    sg_ids = values.get(sg_field, [])
+    sg_refs: list[str] = []
+    if isinstance(sg_ids, list):
+        for sg_id in sg_ids:
+            if isinstance(sg_id, str):
+                sg_refs.append(sg_id)
+                edges.append(Edge(from_id=sg_id, to_id=address, type=EdgeType.ASSOCIATION))
+    return sorted(sg_refs)
 
 
 def _extract_security_group(
@@ -238,13 +277,7 @@ def _extract_load_balancer(
     if "scheme" in values:
         is_public = values["scheme"] == "internet-facing"
 
-    sg_ids = values.get("security_groups", [])
-    sg_refs: list[str] = []
-    if isinstance(sg_ids, list):
-        for sg_id in sg_ids:
-            if isinstance(sg_id, str):
-                sg_refs.append(sg_id)
-                edges.append(Edge(from_id=sg_id, to_id=address, type=EdgeType.ASSOCIATION))
+    sg_refs = _add_sg_associations(address, "security_groups", values, edges)
 
     nodes.append(
         Node(
@@ -253,7 +286,7 @@ def _extract_load_balancer(
             category=category,
             provider="aws",
             flags=NodeFlags(internet_facing=is_public),
-            meta={"sg_refs": sorted(sg_refs)},
+            meta={"sg_refs": sg_refs},
         )
     )
 
@@ -267,13 +300,7 @@ def _extract_instance(
 ) -> None:
     has_public_ip = values.get("associate_public_ip_address", False) is True
 
-    sg_ids = values.get("vpc_security_group_ids", [])
-    sg_refs: list[str] = []
-    if isinstance(sg_ids, list):
-        for sg_id in sg_ids:
-            if isinstance(sg_id, str):
-                sg_refs.append(sg_id)
-                edges.append(Edge(from_id=sg_id, to_id=address, type=EdgeType.ASSOCIATION))
+    sg_refs = _add_sg_associations(address, "vpc_security_group_ids", values, edges)
 
     nodes.append(
         Node(
@@ -282,7 +309,7 @@ def _extract_instance(
             category=category,
             provider="aws",
             flags=NodeFlags(internet_facing=has_public_ip),
-            meta={"sg_refs": sorted(sg_refs)},
+            meta={"sg_refs": sg_refs},
         )
     )
 
@@ -304,17 +331,11 @@ def _extract_db_instance(
 ) -> None:
     publicly_accessible = values.get("publicly_accessible", False) is True
 
-    sg_ids = values.get("vpc_security_group_ids", [])
-    sg_refs: list[str] = []
-    if isinstance(sg_ids, list):
-        for sg_id in sg_ids:
-            if isinstance(sg_id, str):
-                sg_refs.append(sg_id)
-                edges.append(Edge(from_id=sg_id, to_id=address, type=EdgeType.ASSOCIATION))
+    sg_refs = _add_sg_associations(address, "vpc_security_group_ids", values, edges)
 
     meta: dict[str, object] = {
         "publicly_accessible": publicly_accessible,
-        "sg_refs": sorted(sg_refs),
+        "sg_refs": sg_refs,
     }
     engine = values.get("engine")
     if isinstance(engine, str):
@@ -362,6 +383,7 @@ def _extract_iam_policy(
 ) -> None:
     rc_type = rc.get("type", "")
     actions = _extract_policy_actions(values)
+    canonical = _map_actions_to_canonical(actions)
 
     if rc_type in ("aws_iam_role_policy_attachment", "aws_iam_policy_attachment"):
         role = values.get("role", values.get("roles", [None]))
@@ -386,6 +408,7 @@ def _extract_iam_policy(
             category=category,
             provider="aws",
             meta={"actions": actions},
+            canonical_actions=canonical,
         )
     )
 
@@ -414,6 +437,51 @@ def _extract_policy_actions(values: dict[str, Any]) -> list[str]:
         elif isinstance(stmt_actions, list):
             actions.extend(a for a in stmt_actions if isinstance(a, str))
     return actions
+
+
+def _map_actions_to_canonical(actions: list[str]) -> set[CanonicalAction]:
+    """Map AWS IAM actions to canonical action categories."""
+    canonical: set[CanonicalAction] = set()
+    
+    for action in actions:
+        if not isinstance(action, str):
+            continue
+            
+        if action == "*":
+            # Wildcard grants all actions
+            return set(CanonicalAction)
+        
+        # Database management
+        if action.startswith(("rds:", "dynamodb:", "redshift:")):
+            canonical.add(CanonicalAction.DATABASE_ADMIN)
+        
+        # Secret/credential access
+        if action.startswith(("kms:Decrypt", "kms:ReEncrypt", "secretsmanager:GetSecretValue")):
+            canonical.add(CanonicalAction.SECRET_READ)
+        if action.startswith(("kms:Encrypt", "kms:CreateKey", "secretsmanager:PutSecretValue")):
+            canonical.add(CanonicalAction.SECRET_WRITE)
+        
+        # Privilege escalation
+        if action in ("iam:PassRole", "sts:AssumeRole"):
+            canonical.add(CanonicalAction.PRIVILEGE_ESCALATION)
+        
+        # Storage access
+        if action.startswith("s3:GetObject"):
+            canonical.add(CanonicalAction.STORAGE_READ)
+        if action.startswith(("s3:PutObject", "s3:DeleteObject")):
+            canonical.add(CanonicalAction.STORAGE_WRITE)
+        
+        # Compute management
+        if action.startswith(("ec2:RunInstances", "ec2:TerminateInstances", "ecs:", "lambda:")):
+            canonical.add(CanonicalAction.COMPUTE_ADMIN)
+        
+        # Network configuration
+        if action.startswith(
+            ("ec2:AuthorizeSecurityGroup", "ec2:ModifySecurityGroup", "ec2:CreateSecurityGroup")
+        ):
+            canonical.add(CanonicalAction.NETWORK_ADMIN)
+    
+    return canonical
 
 
 def _add_internet_edges(nodes: list[Node], edges: list[Edge]) -> None:

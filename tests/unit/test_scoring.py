@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextguard.graph import bfs, build_graph
 from contextguard.model import (
     INTERNET_NODE_ID,
+    CanonicalAction,
     ContextGuardConfig,
     Edge,
     EdgeType,
@@ -200,6 +201,7 @@ class TestRule4IAMImpact:
                 kind=NodeKind.IAM_POLICY,
                 category=NodeCategory.IDENTITY,
                 meta={"actions": ["rds:*"]},
+                canonical_actions={CanonicalAction.DATABASE_ADMIN},
             ),
             Node(
                 id="db",

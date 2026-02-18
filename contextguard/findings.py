@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from contextguard.graph import Graph
 
+# ARCHITECTURAL BOUNDARY: This module must remain provider-agnostic.
+# Do not introduce provider-specific strings (e.g., "iam:PassRole", "rds:*")
+# or source-specific logic here. Use canonical types from model.py only.
+
 from contextguard.model import (
+    CanonicalAction,
     Finding,
     FindingCategory,
     Node,
@@ -85,11 +90,10 @@ def _rule_wildcard_iam(node: Node, graph: Graph) -> Finding | None:
 def _rule_pass_role(node: Node, graph: Graph) -> Finding | None:
     if node.category != NodeCategory.IDENTITY:
         return None
-    actions = _get_actions(node)
-    has_pass_role = any(a == "iam:PassRole" for a in actions)
+    has_pass_role = CanonicalAction.PRIVILEGE_ESCALATION in node.canonical_actions
     if not has_pass_role:
         return None
-    if "*" in actions:
+    if "*" in _get_actions(node):
         return None
     return Finding(
         id=_make_id("pass-role", node.id),
@@ -97,7 +101,7 @@ def _rule_pass_role(node: Node, graph: Graph) -> Finding | None:
         rule_id="pass-role",
         category=FindingCategory.IAM,
         title="IAM PassRole permission",
-        description=f"IAM policy {node.id} grants iam:PassRole.",
+        description=f"IAM policy {node.id} grants privilege escalation permissions.",
         base_severity=Severity.HIGH,
     )
 

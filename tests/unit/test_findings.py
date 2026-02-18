@@ -6,6 +6,7 @@ from contextguard.findings import extract_findings
 from contextguard.graph import Graph, build_graph
 from contextguard.model import (
     INTERNET_NODE_ID,
+    CanonicalAction,
     Edge,
     Node,
     NodeCategory,
@@ -127,6 +128,10 @@ class TestPassRole:
                 kind=NodeKind.IAM_POLICY,
                 category=NodeCategory.IDENTITY,
                 meta={"actions": ["iam:PassRole", "s3:GetObject"]},
+                canonical_actions={
+                    CanonicalAction.PRIVILEGE_ESCALATION,
+                    CanonicalAction.STORAGE_READ,
+                },
             ),
         ]
         graph = _build(nodes)
@@ -141,6 +146,7 @@ class TestPassRole:
                 kind=NodeKind.IAM_POLICY,
                 category=NodeCategory.IDENTITY,
                 meta={"actions": ["*"]},
+                canonical_actions=set(CanonicalAction),
             ),
         ]
         graph = _build(nodes)

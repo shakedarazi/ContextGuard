@@ -9,6 +9,7 @@ from typing import Annotated
 
 import typer
 
+from contextguard.adapter_protocol import get_adapter
 from contextguard.config import load_config
 from contextguard.findings import extract_findings
 from contextguard.graph import bfs, build_graph
@@ -23,7 +24,7 @@ from contextguard.output_json import render_json
 from contextguard.output_markdown import render_markdown
 from contextguard.output_run_metadata import write_run_metadata
 from contextguard.scoring import score_findings
-from contextguard.terraform_adapter import ParseError, parse_plan
+from contextguard.terraform_adapter import ParseError
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -75,7 +76,8 @@ def analyze(
         logging.basicConfig(level=logging.DEBUG)
 
     try:
-        adapter_output = parse_plan(plan)
+        adapter = get_adapter("terraform")
+        adapter_output = adapter.parse(plan)
     except ParseError as e:
         typer.echo(f"Error: {e}", err=True)
         raise SystemExit(2)  # noqa: B904

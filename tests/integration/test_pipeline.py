@@ -273,7 +273,7 @@ class TestAttackPath:
 
 
 class TestBoundaryEnforcement:
-    """Verify output_* modules do not import graph or scoring (analysis/render boundary)."""
+    """Verify architectural boundaries are enforced across modules."""
 
     _OUTPUT_MODULES = [
         Path(__file__).parent.parent.parent / "contextguard" / "output_markdown.py",
@@ -282,20 +282,107 @@ class TestBoundaryEnforcement:
         Path(__file__).parent.parent.parent / "contextguard" / "output_run_metadata.py",
     ]
 
-    _FORBIDDEN_IMPORTS = {"contextguard.graph", "contextguard.scoring"}
+    _ANALYSIS_MODULES = [
+        Path(__file__).parent.parent.parent / "contextguard" / "findings.py",
+        Path(__file__).parent.parent.parent / "contextguard" / "scoring.py",
+    ]
+
+    _ADAPTER_MODULES = [
+        Path(__file__).parent.parent.parent / "contextguard" / "terraform_adapter.py",
+    ]
 
     def test_no_forbidden_imports(self) -> None:
+        """Output modules must not import graph or scoring."""
+        forbidden = {"contextguard.graph", "contextguard.scoring"}
         for module_path in self._OUTPUT_MODULES:
             source = module_path.read_text(encoding="utf-8")
             tree = ast.parse(source, filename=str(module_path))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     for alias in node.names:
-                        assert alias.name not in self._FORBIDDEN_IMPORTS, (
+                        assert alias.name not in forbidden, (
                             f"{module_path.name} must not import {alias.name}"
                         )
                 elif isinstance(node, ast.ImportFrom):
                     module = node.module or ""
-                    assert module not in self._FORBIDDEN_IMPORTS, (
+                    assert module not in forbidden, (
                         f"{module_path.name} must not import from {module}"
                     )
+
+    def test_adapters_no_analysis_imports(self) -> None:
+        """Adapters must not import findings, scoring, or output modules."""
+        forbidden = {
+            "contextguard.findings",
+            "contextguard.scoring",
+            "contextguard.output_markdown",
+            "contextguard.output_json",
+            "contextguard.output_console",
+            "contextguard.output_run_metadata",
+        }
+        for module_path in self._ADAPTER_MODULES:
+            source = module_path.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=str(module_path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        assert alias.name not in forbidden, (
+                            f"{module_path.name} must not import {alias.name}"
+                        )
+                elif isinstance(node, ast.ImportFrom):
+                    module = node.module or ""
+                    assert module not in forbidden, (
+                        f"{module_path.name} must not import from {module}"
+                    )
+
+    def test_analysis_no_adapter_imports(self) -> None:
+        """Analysis modules must not import adapters."""
+        forbidden = {"contextguard.terraform_adapter", "contextguard.adapter_protocol"}
+        for module_path in self._ANALYSIS_MODULES:
+            source = module_path.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=str(module_path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        assert alias.name not in forbidden, (
+                            f"{module_path.name} must not import {alias.name}"
+                        )
+                elif isinstance(node, ast.ImportFrom):
+                    module = node.module or ""
+                    assert module not in forbidden, (
+                        f"{module_path.name} must not import from {module}"
+                    )
+
+    def test_no_provider_specific_strings_in_analysis(self) -> None:
+        """Analysis modules must not contain hardcoded provider-specific strings."""
+        # Regex patterns that indicate provider-specific strings
+        forbidden_patterns = [
+            r'"aws_\w+"',  # AWS Terraform resource types
+            r'"iam:[A-Z]\w+"',  # AWS IAM actions
+            r'"rds:[A-Z*]\w*"',  # AWS RDS actions
+            r'"s3:[A-Z]\w+"',  # AWS S3 actions
+            r'"kms:[A-Z]\w+"',  # AWS KMS actions
+            r'"sts:[A-Z]\w+"',  # AWS STS actions
+            r'"ec2:[A-Z]\w+"',  # AWS EC2 actions
+            r'"gcp_\w+"',  # GCP resource types
+            r'"azurerm_\w+"',  # Azure resource types
+        ]
+        
+        import re
+        
+        for module_path in self._ANALYSIS_MODULES:
+            source = module_path.read_text(encoding="utf-8")
+            # Skip the architectural boundary comment itself
+            lines = source.split("\n")
+            for line_num, line in enumerate(lines, 1):
+                # Skip comments and docstrings
+                stripped = line.strip()
+                if stripped.startswith("#") or '"""' in line or "'''" in line:
+                    continue
+                for pattern in forbidden_patterns:
+                    matches = re.findall(pattern, line)
+                    if matches:
+                        msg = (
+                            f"{module_path.name}:{line_num} contains provider-specific string: "
+                            f"{matches[0]} (pattern: {pattern})"
+                        )
+                        raise AssertionError(msg)

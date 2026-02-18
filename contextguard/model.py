@@ -25,6 +25,19 @@ class NodeCategory(StrEnum):
     UNKNOWN = "unknown"
 
 
+class CanonicalAction(StrEnum):
+    """Provider-agnostic security-relevant action categories."""
+
+    DATABASE_ADMIN = "database_admin"
+    SECRET_READ = "secret_read"
+    SECRET_WRITE = "secret_write"
+    PRIVILEGE_ESCALATION = "privilege_escalation"
+    COMPUTE_ADMIN = "compute_admin"
+    NETWORK_ADMIN = "network_admin"
+    STORAGE_READ = "storage_read"
+    STORAGE_WRITE = "storage_write"
+
+
 class NodeKind(StrEnum):
     """Legacy AWS-specific node kinds — kept for backward compatibility."""
 
@@ -78,6 +91,7 @@ class Node(BaseModel):
     provider: str = "aws"
     flags: NodeFlags = Field(default_factory=NodeFlags)
     meta: dict[str, object] | None = None
+    canonical_actions: set[CanonicalAction] = Field(default_factory=set)
 
 
 class Edge(BaseModel):

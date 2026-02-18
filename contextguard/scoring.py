@@ -2,25 +2,30 @@
 
 from __future__ import annotations
 
+# ARCHITECTURAL BOUNDARY: This module must remain provider-agnostic.
+# Do not introduce provider-specific strings or assumptions about providers.
+# Depend only on canonical model types and graph relationships.
 from contextguard.graph import BfsResult, Graph, shortest_path
 from contextguard.model import (
     Breakpoint,
     BreakpointType,
+    CanonicalAction,
     ContextGuardConfig,
     Finding,
     NodeCategory,
     Severity,
 )
 
-CROWN_JEWEL_IMPACT_ACTIONS: set[str] = {
-    "rds:*",
-    "kms:Decrypt",
-    "kms:ReEncrypt*",
-    "s3:GetObject",
-    "s3:PutObject",
-    "iam:PassRole",
-    "sts:AssumeRole",
-}
+
+def _has_crown_jewel_impact(node_actions: set[CanonicalAction]) -> bool:
+    """Check if node has actions that impact crown jewels."""
+    impact_actions = {
+        CanonicalAction.DATABASE_ADMIN,
+        CanonicalAction.SECRET_READ,
+        CanonicalAction.STORAGE_READ,
+        CanonicalAction.PRIVILEGE_ESCALATION,
+    }
+    return bool(node_actions & impact_actions)
 
 _BREAKPOINT_TEMPLATES: dict[NodeCategory, tuple[BreakpointType, str]] = {
     NodeCategory.LOAD_BALANCER: (
@@ -131,25 +136,9 @@ def _apply_severity_override(
 
 def _iam_impacts_crown_jewel(finding: Finding, graph: Graph) -> bool:
     node = graph.nodes.get(finding.node_id)
-    if node is None or node.meta is None:
+    if node is None:
         return False
-    actions = node.meta.get("actions", [])
-    if not isinstance(actions, list):
-        return False
-
-    for action in actions:
-        if not isinstance(action, str):
-            continue
-        if action == "*":
-            return True
-        for impact_action in CROWN_JEWEL_IMPACT_ACTIONS:
-            if impact_action.endswith("*"):
-                prefix = impact_action[:-1]
-                if action.startswith(prefix) or action == impact_action:
-                    return True
-            elif action == impact_action:
-                return True
-    return False
+    return _has_crown_jewel_impact(node.canonical_actions)
 
 
 def _severity_rank(severity: Severity) -> int:
