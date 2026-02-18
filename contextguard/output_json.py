@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 from typing import TYPE_CHECKING
 
@@ -17,7 +18,11 @@ def render_json(result: AnalysisResult, out_path: Path, plan: Path) -> Path:
 
     sorted_result = _sort_for_determinism(result)
     data = sorted_result.model_dump(mode="json")
-    data["plan"] = str(plan)
+    data["run"] = {
+        "timestamp_utc": datetime.datetime.utcnow().isoformat() + "Z",
+        "plan_path": str(_Path(str(plan)).resolve()),
+        "output_dir": str(_Path(str(out_path)).resolve()),
+    }
     _Path(str(out_path)).mkdir(parents=True, exist_ok=True)
     out_file = _Path(str(out_path), "report.json")
     out_file.write_text(

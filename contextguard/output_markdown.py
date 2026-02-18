@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -18,7 +19,7 @@ def render_markdown(
 
     lines: list[str] = []
     lines.append("# ContextGuard Report\n")
-    lines.append(f"**Plan:** `{plan}`\n")
+    _run_metadata_section(lines, plan, out_path)
 
     _executive_summary(lines, result, gate_passed)
     _findings_section(lines, result)
@@ -124,6 +125,16 @@ def _methodology_section(lines: list[str]) -> None:
         "jewels produce higher severity. Path breakpoints identify where to sever "
         "the attack path.\n"
     )
+
+
+def _run_metadata_section(lines: list[str], plan: Path, out_path: Path) -> None:
+    from pathlib import Path as _Path
+
+    lines.append("## Run Metadata\n")
+    lines.append(f"- Timestamp (UTC): {datetime.datetime.utcnow().isoformat()}Z")
+    lines.append(f"- Plan path: `{_Path(str(plan)).resolve()}`")
+    lines.append(f"- Output directory: `{_Path(str(out_path)).resolve()}`")
+    lines.append("")
 
 
 def _scope_section(lines: list[str], result: AnalysisResult) -> None:

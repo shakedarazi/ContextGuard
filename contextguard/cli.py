@@ -98,14 +98,14 @@ def analyze(
     render_console(result, gate_passed)
     try:
         md_path = render_markdown(result, out, gate_passed, plan)
-        typer.echo(f"Wrote report (MD): {md_path}")
+        typer.echo(f"Wrote report (MD): {md_path.resolve()}")
     except Exception as e:
         typer.echo(f"Error writing markdown: {e}", err=True)
         raise
 
     try:
         json_path = render_json(result, out, plan)
-        typer.echo(f"Wrote report (JSON): {json_path}")
+        typer.echo(f"Wrote report (JSON): {json_path.resolve()}")
     except Exception as e:
         typer.echo(f"Error writing JSON: {e}", err=True)
         raise
