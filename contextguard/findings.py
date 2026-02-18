@@ -12,7 +12,7 @@ from contextguard.model import (
     Finding,
     FindingCategory,
     Node,
-    NodeKind,
+    NodeCategory,
     Severity,
 )
 
@@ -34,7 +34,7 @@ def _make_id(rule_id: str, node_id: str) -> str:
 
 
 def _rule_sg_open_to_world(node: Node, graph: Graph) -> Finding | None:
-    if node.kind != NodeKind.SECURITY_GROUP:
+    if node.category != NodeCategory.FIREWALL:
         return None
     if not (node.meta and node.meta.get("open_to_world") is True):
         return None
@@ -50,7 +50,7 @@ def _rule_sg_open_to_world(node: Node, graph: Graph) -> Finding | None:
 
 
 def _rule_public_lb(node: Node, graph: Graph) -> Finding | None:
-    if node.kind != NodeKind.LOAD_BALANCER:
+    if node.category != NodeCategory.LOAD_BALANCER:
         return None
     if not node.flags.internet_facing:
         return None
@@ -66,7 +66,7 @@ def _rule_public_lb(node: Node, graph: Graph) -> Finding | None:
 
 
 def _rule_wildcard_iam(node: Node, graph: Graph) -> Finding | None:
-    if node.kind != NodeKind.IAM_POLICY:
+    if node.category != NodeCategory.IDENTITY:
         return None
     actions = _get_actions(node)
     if "*" not in actions:
@@ -83,7 +83,7 @@ def _rule_wildcard_iam(node: Node, graph: Graph) -> Finding | None:
 
 
 def _rule_pass_role(node: Node, graph: Graph) -> Finding | None:
-    if node.kind != NodeKind.IAM_POLICY:
+    if node.category != NodeCategory.IDENTITY:
         return None
     actions = _get_actions(node)
     has_pass_role = any(a == "iam:PassRole" for a in actions)
@@ -103,7 +103,7 @@ def _rule_pass_role(node: Node, graph: Graph) -> Finding | None:
 
 
 def _rule_db_publicly_accessible(node: Node, graph: Graph) -> Finding | None:
-    if node.kind != NodeKind.DB_INSTANCE:
+    if node.category != NodeCategory.DATABASE:
         return None
     if not (node.meta and node.meta.get("publicly_accessible") is True):
         return None

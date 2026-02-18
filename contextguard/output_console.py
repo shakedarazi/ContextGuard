@@ -36,29 +36,28 @@ def _render_rich(result: AnalysisResult, gate_passed: bool) -> None:
             table.add_row(sev.value, str(count))
     console.print(table)
 
-    paths = [
-        f for f in result.findings
-        if f.attack_path and f.context_severity in (Severity.CRITICAL, Severity.HIGH)
-    ]
-    paths.sort(key=lambda f: (f.shortest_path_length or 999))
-    if paths:
+    if result.attack_paths:
         console.print("\n[bold]Top Attack Paths:[/bold]")
-        for f in paths[:3]:
-            hops = f.shortest_path_length or 0
-            path_str = " -> ".join(f.attack_path)
-            console.print(f"  ({hops} hops) {path_str}")
+        for ap in result.attack_paths[:3]:
+            path_str = " -> ".join(ap.path)
+            console.print(f"  ({ap.hops} hops) {path_str}")
 
-    all_bps = []
+    # Collect unique breakpoints, deduplicated by node_id, ranked by paths_broken desc
     seen_bp_ids: set[str] = set()
+    all_bps = []
     for f in result.findings:
         for bp in f.breakpoints:
             if bp.node_id not in seen_bp_ids:
                 seen_bp_ids.add(bp.node_id)
                 all_bps.append(bp)
+    all_bps.sort(key=lambda bp: -bp.paths_broken)
     if all_bps:
         console.print("\n[bold]Top Breakpoints:[/bold]")
         for bp in all_bps[:5]:
-            console.print(f"  [{bp.type.value}] {bp.node_id} — {bp.recommendation}")
+            console.print(
+                f"  [{bp.type.value}] {bp.node_id} "
+                f"(breaks {bp.paths_broken} path(s)) — {bp.recommendation}"
+            )
 
     console.print(f"\nResources: {result.stats.supported} analyzed, {result.stats.skipped} skipped")
     status = "[green]PASSED[/green]" if gate_passed else "[red]FAILED[/red]"

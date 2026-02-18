@@ -9,7 +9,25 @@ from pydantic import BaseModel, Field
 INTERNET_NODE_ID = "__internet__"
 
 
+class NodeCategory(StrEnum):
+    """Provider-agnostic semantic category for a node."""
+
+    INTERNET = "internet"
+    LOAD_BALANCER = "load_balancer"
+    COMPUTE = "compute"
+    DATABASE = "database"
+    IDENTITY = "identity"
+    FIREWALL = "firewall"
+    SECRET = "secret"
+    K8S_INGRESS = "k8s_ingress"
+    K8S_SERVICE = "k8s_service"
+    K8S_WORKLOAD = "k8s_workload"
+    UNKNOWN = "unknown"
+
+
 class NodeKind(StrEnum):
+    """Legacy AWS-specific node kinds — kept for backward compatibility."""
+
     INTERNET = "internet"
     SECURITY_GROUP = "security_group"
     LOAD_BALANCER = "load_balancer"
@@ -55,7 +73,9 @@ class NodeFlags(BaseModel):
 
 class Node(BaseModel):
     id: str
-    kind: NodeKind
+    kind: str  # freeform raw provider type, e.g. "aws_lb", "google_compute_instance"
+    category: NodeCategory = NodeCategory.UNKNOWN
+    provider: str = "aws"
     flags: NodeFlags = Field(default_factory=NodeFlags)
     meta: dict[str, object] | None = None
 
@@ -69,9 +89,16 @@ class Edge(BaseModel):
 
 class Breakpoint(BaseModel):
     node_id: str
-    kind: NodeKind
+    category: NodeCategory
     type: BreakpointType
     recommendation: str
+    paths_broken: int = 1
+
+
+class AttackPath(BaseModel):
+    path: list[str]
+    hops: int
+    finding_ids: list[str]
 
 
 class Finding(BaseModel):
@@ -127,3 +154,5 @@ class AnalysisResult(BaseModel):
     edges: list[Edge]
     findings: list[Finding]
     stats: AdapterStats
+    crown_jewel_ids: list[str] = Field(default_factory=list)
+    attack_paths: list[AttackPath] = Field(default_factory=list)

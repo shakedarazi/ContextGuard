@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contextguard.graph import build_graph, bfs, shortest_path
+from contextguard.graph import bfs, build_graph, shortest_path
 from contextguard.model import (
     INTERNET_NODE_ID,
     Edge,

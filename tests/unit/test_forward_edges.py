@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contextguard.model import Edge, EdgeType, Node, NodeFlags, NodeKind
+from contextguard.model import Edge, EdgeType, Node, NodeCategory, NodeFlags, NodeKind
 from contextguard.terraform_adapter import _derive_forward_edges
 
 
@@ -15,6 +15,7 @@ def _sg(
     return Node(
         id=address,
         kind=NodeKind.SECURITY_GROUP,
+        category=NodeCategory.FIREWALL,
         meta={"open_to_world": open_to_world, "ingress_rules": rules},
     )
 
@@ -23,6 +24,7 @@ def _lb(address: str, sg_refs: list[str]) -> Node:
     return Node(
         id=address,
         kind=NodeKind.LOAD_BALANCER,
+        category=NodeCategory.LOAD_BALANCER,
         flags=NodeFlags(internet_facing=True),
         meta={"sg_refs": sorted(sg_refs)},
     )
@@ -32,6 +34,7 @@ def _instance(address: str, sg_refs: list[str]) -> Node:
     return Node(
         id=address,
         kind=NodeKind.INSTANCE,
+        category=NodeCategory.COMPUTE,
         meta={"sg_refs": sorted(sg_refs)},
     )
 
@@ -53,6 +56,7 @@ def _db(
     return Node(
         id=address,
         kind=NodeKind.DB_INSTANCE,
+        category=NodeCategory.DATABASE,
         flags=NodeFlags(crown_jewel=True),
         meta=meta,
     )

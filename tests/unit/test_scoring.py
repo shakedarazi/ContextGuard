@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from contextguard.graph import BfsResult, build_graph, bfs
+from contextguard.graph import bfs, build_graph
 from contextguard.model import (
     INTERNET_NODE_ID,
-    BreakpointType,
     ContextGuardConfig,
     Edge,
     EdgeType,
     Finding,
     FindingCategory,
     Node,
+    NodeCategory,
     NodeFlags,
     NodeKind,
     Severity,
@@ -43,8 +43,13 @@ def _config() -> ContextGuardConfig:
 class TestRule1Unreachable:
     def test_unreachable_downgraded_to_noise(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": True}),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": True},
+            ),
         ]
         edges: list[Edge] = []
         graph = build_graph(nodes, edges)
@@ -57,10 +62,11 @@ class TestRule1Unreachable:
 
     def test_unreachable_critical_base_still_noise(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
             Node(
                 id="db-1",
                 kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
                 flags=NodeFlags(crown_jewel=True),
                 meta={"publicly_accessible": True},
             ),
@@ -76,9 +82,19 @@ class TestRule1Unreachable:
 class TestRule2NoCrownJewelPath:
     def test_reachable_no_crown_jewel_capped_at_high(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="alb", kind=NodeKind.LOAD_BALANCER, flags=NodeFlags(internet_facing=True)),
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": True}),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="alb",
+                kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
+                flags=NodeFlags(internet_facing=True),
+            ),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": True},
+            ),
         ]
         edges = [
             Edge(from_id=INTERNET_NODE_ID, to_id="alb", type=EdgeType.NETWORK_EXPOSURE),
@@ -96,10 +112,25 @@ class TestRule2NoCrownJewelPath:
 class TestRule3CrownJewelPath:
     def test_three_hops_critical(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="alb", kind=NodeKind.LOAD_BALANCER, flags=NodeFlags(internet_facing=True)),
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": True}),
-            Node(id="db", kind=NodeKind.DB_INSTANCE, flags=NodeFlags(crown_jewel=True)),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="alb",
+                kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
+                flags=NodeFlags(internet_facing=True),
+            ),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": True},
+            ),
+            Node(
+                id="db",
+                kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
+                flags=NodeFlags(crown_jewel=True),
+            ),
         ]
         edges = [
             Edge(from_id=INTERNET_NODE_ID, to_id="alb", type=EdgeType.NETWORK_EXPOSURE),
@@ -117,12 +148,27 @@ class TestRule3CrownJewelPath:
 
     def test_five_hops_high(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="alb", kind=NodeKind.LOAD_BALANCER, flags=NodeFlags(internet_facing=True)),
-            Node(id="n1", kind=NodeKind.INSTANCE),
-            Node(id="n2", kind=NodeKind.INSTANCE),
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": True}),
-            Node(id="db", kind=NodeKind.DB_INSTANCE, flags=NodeFlags(crown_jewel=True)),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="alb",
+                kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
+                flags=NodeFlags(internet_facing=True),
+            ),
+            Node(id="n1", kind=NodeKind.INSTANCE, category=NodeCategory.COMPUTE),
+            Node(id="n2", kind=NodeKind.INSTANCE, category=NodeCategory.COMPUTE),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": True},
+            ),
+            Node(
+                id="db",
+                kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
+                flags=NodeFlags(crown_jewel=True),
+            ),
         ]
         edges = [
             Edge(from_id=INTERNET_NODE_ID, to_id="alb", type=EdgeType.NETWORK_EXPOSURE),
@@ -142,10 +188,25 @@ class TestRule3CrownJewelPath:
 class TestRule4IAMImpact:
     def test_iam_rds_wildcard_forces_critical(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="alb", kind=NodeKind.LOAD_BALANCER, flags=NodeFlags(internet_facing=True)),
-            Node(id="pol", kind=NodeKind.IAM_POLICY, meta={"actions": ["rds:*"]}),
-            Node(id="db", kind=NodeKind.DB_INSTANCE, flags=NodeFlags(crown_jewel=True)),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="alb",
+                kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
+                flags=NodeFlags(internet_facing=True),
+            ),
+            Node(
+                id="pol",
+                kind=NodeKind.IAM_POLICY,
+                category=NodeCategory.IDENTITY,
+                meta={"actions": ["rds:*"]},
+            ),
+            Node(
+                id="db",
+                kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
+                flags=NodeFlags(crown_jewel=True),
+            ),
         ]
         edges = [
             Edge(from_id=INTERNET_NODE_ID, to_id="alb", type=EdgeType.NETWORK_EXPOSURE),
@@ -164,17 +225,28 @@ class TestRule4IAMImpact:
         """ec2:DescribeInstances is not in the impact families, so rule 4 must not fire.
         Use a long path so rule 3 doesn't independently reach CRITICAL either."""
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="alb", kind=NodeKind.LOAD_BALANCER, flags=NodeFlags(internet_facing=True)),
-            Node(id="n1", kind=NodeKind.INSTANCE),
-            Node(id="n2", kind=NodeKind.INSTANCE),
-            Node(id="n3", kind=NodeKind.INSTANCE),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="alb",
+                kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
+                flags=NodeFlags(internet_facing=True),
+            ),
+            Node(id="n1", kind=NodeKind.INSTANCE, category=NodeCategory.COMPUTE),
+            Node(id="n2", kind=NodeKind.INSTANCE, category=NodeCategory.COMPUTE),
+            Node(id="n3", kind=NodeKind.INSTANCE, category=NodeCategory.COMPUTE),
             Node(
                 id="pol",
                 kind=NodeKind.IAM_POLICY,
+                category=NodeCategory.IDENTITY,
                 meta={"actions": ["ec2:DescribeInstances"]},
             ),
-            Node(id="db", kind=NodeKind.DB_INSTANCE, flags=NodeFlags(crown_jewel=True)),
+            Node(
+                id="db",
+                kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
+                flags=NodeFlags(crown_jewel=True),
+            ),
         ]
         edges = [
             Edge(from_id=INTERNET_NODE_ID, to_id="alb", type=EdgeType.NETWORK_EXPOSURE),
@@ -189,7 +261,6 @@ class TestRule4IAMImpact:
         findings = [_finding("pol", "other-rule", FindingCategory.IAM, Severity.HIGH)]
 
         scored = score_findings(findings, bfs_result, graph, _config())
-        # Rule 4 should NOT have fired (non-impact action), so reason must not mention "impact"
         assert "impact" not in scored[0].override_reason.lower()
         assert scored[0].context_severity != Severity.CRITICAL
 
@@ -197,10 +268,25 @@ class TestRule4IAMImpact:
 class TestBreakpoints:
     def test_three_hop_one_breakpoint(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="alb", kind=NodeKind.LOAD_BALANCER, flags=NodeFlags(internet_facing=True)),
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": True}),
-            Node(id="db", kind=NodeKind.DB_INSTANCE, flags=NodeFlags(crown_jewel=True)),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="alb",
+                kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
+                flags=NodeFlags(internet_facing=True),
+            ),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": True},
+            ),
+            Node(
+                id="db",
+                kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
+                flags=NodeFlags(crown_jewel=True),
+            ),
         ]
         edges = [
             Edge(from_id=INTERNET_NODE_ID, to_id="alb", type=EdgeType.NETWORK_EXPOSURE),
@@ -216,12 +302,31 @@ class TestBreakpoints:
 
     def test_five_hop_two_breakpoints(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="alb", kind=NodeKind.LOAD_BALANCER, flags=NodeFlags(internet_facing=True)),
-            Node(id="n1", kind=NodeKind.INSTANCE),
-            Node(id="n2", kind=NodeKind.SECURITY_GROUP),
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": True}),
-            Node(id="db", kind=NodeKind.DB_INSTANCE, flags=NodeFlags(crown_jewel=True)),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="alb",
+                kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
+                flags=NodeFlags(internet_facing=True),
+            ),
+            Node(id="n1", kind=NodeKind.INSTANCE, category=NodeCategory.COMPUTE),
+            Node(
+                id="n2",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+            ),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": True},
+            ),
+            Node(
+                id="db",
+                kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
+                flags=NodeFlags(crown_jewel=True),
+            ),
         ]
         edges = [
             Edge(from_id=INTERNET_NODE_ID, to_id="alb", type=EdgeType.NETWORK_EXPOSURE),
@@ -239,10 +344,25 @@ class TestBreakpoints:
 
     def test_lb_breakpoint_uses_lb_template(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="alb", kind=NodeKind.LOAD_BALANCER, flags=NodeFlags(internet_facing=True)),
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": True}),
-            Node(id="db", kind=NodeKind.DB_INSTANCE, flags=NodeFlags(crown_jewel=True)),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="alb",
+                kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
+                flags=NodeFlags(internet_facing=True),
+            ),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": True},
+            ),
+            Node(
+                id="db",
+                kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
+                flags=NodeFlags(crown_jewel=True),
+            ),
         ]
         edges = [
             Edge(from_id=INTERNET_NODE_ID, to_id="alb", type=EdgeType.NETWORK_EXPOSURE),
@@ -255,18 +375,34 @@ class TestBreakpoints:
 
         scored = score_findings(findings, bfs_result, graph, _config())
         lb_bp = next(
-            (bp for bp in scored[0].breakpoints if bp.kind == NodeKind.LOAD_BALANCER), None
+            (bp for bp in scored[0].breakpoints if bp.category == NodeCategory.LOAD_BALANCER),
+            None,
         )
         assert lb_bp is not None
         assert "WAF" in lb_bp.recommendation or "listener" in lb_bp.recommendation
 
     def test_iam_role_breakpoint_uses_role_template(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="alb", kind=NodeKind.LOAD_BALANCER, flags=NodeFlags(internet_facing=True)),
-            Node(id="role-1", kind=NodeKind.IAM_ROLE),
-            Node(id="pol", kind=NodeKind.IAM_POLICY, meta={"actions": ["rds:*"]}),
-            Node(id="db", kind=NodeKind.DB_INSTANCE, flags=NodeFlags(crown_jewel=True)),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="alb",
+                kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
+                flags=NodeFlags(internet_facing=True),
+            ),
+            Node(id="role-1", kind=NodeKind.IAM_ROLE, category=NodeCategory.IDENTITY),
+            Node(
+                id="pol",
+                kind=NodeKind.IAM_POLICY,
+                category=NodeCategory.IDENTITY,
+                meta={"actions": ["rds:*"]},
+            ),
+            Node(
+                id="db",
+                kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
+                flags=NodeFlags(crown_jewel=True),
+            ),
         ]
         edges = [
             Edge(from_id=INTERNET_NODE_ID, to_id="alb", type=EdgeType.NETWORK_EXPOSURE),
@@ -279,13 +415,17 @@ class TestBreakpoints:
         findings = [_finding("pol", "wildcard-iam", FindingCategory.IAM, Severity.HIGH)]
 
         scored = score_findings(findings, bfs_result, graph, _config())
-        # Breakpoint should be on the IAM role (earliest intermediate)
         assert len(scored[0].breakpoints) >= 1
 
     def test_no_breakpoints_on_noise(self) -> None:
         nodes = [
-            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET),
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": True}),
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": True},
+            ),
         ]
         graph = build_graph(nodes, [])
         bfs_result = bfs(graph, INTERNET_NODE_ID)
@@ -298,7 +438,9 @@ class TestBreakpoints:
 
 class TestEmptyFindings:
     def test_empty_input(self) -> None:
-        nodes = [Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET)]
+        nodes = [
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+        ]
         graph = build_graph(nodes, [])
         bfs_result = bfs(graph, INTERNET_NODE_ID)
 

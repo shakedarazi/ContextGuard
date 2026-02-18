@@ -12,3 +12,4 @@ docs/
 dist/
 BUILD_PLAN.md
 PROJECT_CONSTITUTION.md
+.test-out/

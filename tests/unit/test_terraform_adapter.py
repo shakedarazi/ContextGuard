@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from contextguard.model import INTERNET_NODE_ID, EdgeType, NodeKind
+from contextguard.model import INTERNET_NODE_ID, EdgeType, NodeCategory
 from contextguard.terraform_adapter import ParseError, parse_plan
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
@@ -23,10 +23,10 @@ class TestInternetNode:
         ids = [n.id for n in result.nodes]
         assert INTERNET_NODE_ID in ids
 
-    def test_internet_node_kind(self) -> None:
+    def test_internet_node_category(self) -> None:
         result = parse_plan(FIXTURES / "empty-plan.json")
         internet = next(n for n in result.nodes if n.id == INTERNET_NODE_ID)
-        assert internet.kind == NodeKind.INTERNET
+        assert internet.category == NodeCategory.INTERNET
 
 
 class TestInternetEdges:
@@ -46,7 +46,7 @@ class TestInternetEdges:
         result = parse_plan(FIXTURES / "full-plan.json")
         internet_edges = [e for e in result.edges if e.from_id == INTERNET_NODE_ID]
         targets = {e.to_id for e in internet_edges}
-        sg_ids = {n.id for n in result.nodes if n.kind == NodeKind.SECURITY_GROUP}
+        sg_ids = {n.id for n in result.nodes if n.category == NodeCategory.FIREWALL}
         assert targets.isdisjoint(sg_ids), "INTERNET should not connect to security groups"
 
     def test_internet_edges_do_not_target_private_instance(self) -> None:
@@ -135,7 +135,7 @@ class TestSGAssociationEdges:
 class TestCrownJewelFlag:
     def test_db_instance_is_crown_jewel(self) -> None:
         result = parse_plan(FIXTURES / "full-plan.json")
-        db = next(n for n in result.nodes if n.kind == NodeKind.DB_INSTANCE)
+        db = next(n for n in result.nodes if n.category == NodeCategory.DATABASE)
         assert db.flags.crown_jewel is True
 
 
@@ -153,3 +153,21 @@ class TestIAMExtraction:
         result = parse_plan(FIXTURES / "full-plan.json")
         binding_edges = [e for e in result.edges if e.type == EdgeType.IAM_BINDING]
         assert len(binding_edges) > 0
+
+
+class TestNodeProviderAndCategory:
+    def test_lb_node_has_aws_provider_and_category(self) -> None:
+        result = parse_plan(FIXTURES / "full-plan.json")
+        lbs = [n for n in result.nodes if n.category == NodeCategory.LOAD_BALANCER]
+        assert len(lbs) > 0
+        for lb in lbs:
+            assert lb.provider == "aws"
+            assert lb.kind == "aws_lb"
+
+    def test_db_node_has_database_category(self) -> None:
+        result = parse_plan(FIXTURES / "full-plan.json")
+        dbs = [n for n in result.nodes if n.category == NodeCategory.DATABASE]
+        assert len(dbs) > 0
+        for db in dbs:
+            assert db.provider == "aws"
+            assert db.kind == "aws_db_instance"

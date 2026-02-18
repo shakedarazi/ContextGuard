@@ -8,7 +8,7 @@ from contextguard.model import (
     BreakpointType,
     ContextGuardConfig,
     Finding,
-    NodeKind,
+    NodeCategory,
     Severity,
 )
 
@@ -22,32 +22,26 @@ CROWN_JEWEL_IMPACT_ACTIONS: set[str] = {
     "sts:AssumeRole",
 }
 
-_BREAKPOINT_TEMPLATES: dict[NodeKind, tuple[BreakpointType, str]] = {
-    NodeKind.LOAD_BALANCER: (
+_BREAKPOINT_TEMPLATES: dict[NodeCategory, tuple[BreakpointType, str]] = {
+    NodeCategory.LOAD_BALANCER: (
         BreakpointType.NETWORK,
         "Add WAF or restrict listener rules on {node_id} to limit inbound traffic",
     ),
-    NodeKind.SECURITY_GROUP: (
+    NodeCategory.FIREWALL: (
         BreakpointType.NETWORK,
         "Restrict ingress on {node_id} to known CIDR ranges, remove 0.0.0.0/0 rules",
     ),
-    NodeKind.INSTANCE: (
+    NodeCategory.COMPUTE: (
         BreakpointType.NETWORK,
-        "Remove public IP from {node_id} or place behind a private subnet with NAT",
+        "Remove public IP from {node_id} or place behind a private subnet with NAT; "
+        "ensure launch templates do not assign public IPs",
     ),
-    NodeKind.AUTOSCALING_GROUP: (
-        BreakpointType.NETWORK,
-        "Ensure launch template for {node_id} does not assign public IPs",
-    ),
-    NodeKind.IAM_ROLE: (
+    NodeCategory.IDENTITY: (
         BreakpointType.IDENTITY,
-        "Scope down trust policy on {node_id}, restrict who can assume this role",
+        "Remove wildcard actions and scope down trust policies on {node_id}; "
+        "apply least-privilege permissions",
     ),
-    NodeKind.IAM_POLICY: (
-        BreakpointType.IDENTITY,
-        "Remove wildcard actions from {node_id}, apply least-privilege permissions",
-    ),
-    NodeKind.DB_INSTANCE: (
+    NodeCategory.DATABASE: (
         BreakpointType.DATA,
         "Disable public accessibility on {node_id}, move to private subnet",
     ),
@@ -199,13 +193,13 @@ def _make_breakpoint(node_id: str, graph: Graph) -> Breakpoint | None:
     node = graph.nodes.get(node_id)
     if node is None:
         return None
-    template_entry = _BREAKPOINT_TEMPLATES.get(node.kind)
+    template_entry = _BREAKPOINT_TEMPLATES.get(node.category)
     if template_entry is None:
         return None
     bp_type, template = template_entry
     return Breakpoint(
         node_id=node_id,
-        kind=node.kind,
+        category=node.category,
         type=bp_type,
         recommendation=template.format(node_id=node_id),
     )

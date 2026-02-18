@@ -7,8 +7,8 @@ from contextguard.graph import Graph, build_graph
 from contextguard.model import (
     INTERNET_NODE_ID,
     Edge,
-    EdgeType,
     Node,
+    NodeCategory,
     NodeFlags,
     NodeKind,
     Severity,
@@ -22,7 +22,12 @@ def _build(nodes: list[Node], edges: list[Edge] | None = None) -> Graph:
 class TestSGOpenToWorld:
     def test_fires_on_open_sg(self) -> None:
         nodes = [
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": True}),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": True},
+            ),
         ]
         graph = _build(nodes)
         findings = extract_findings(nodes, graph)
@@ -32,7 +37,12 @@ class TestSGOpenToWorld:
 
     def test_does_not_fire_on_closed_sg(self) -> None:
         nodes = [
-            Node(id="sg-1", kind=NodeKind.SECURITY_GROUP, meta={"open_to_world": False}),
+            Node(
+                id="sg-1",
+                kind=NodeKind.SECURITY_GROUP,
+                category=NodeCategory.FIREWALL,
+                meta={"open_to_world": False},
+            ),
         ]
         graph = _build(nodes)
         findings = extract_findings(nodes, graph)
@@ -40,7 +50,12 @@ class TestSGOpenToWorld:
 
     def test_does_not_fire_on_non_sg(self) -> None:
         nodes = [
-            Node(id="inst-1", kind=NodeKind.INSTANCE, meta={"open_to_world": True}),
+            Node(
+                id="inst-1",
+                kind=NodeKind.INSTANCE,
+                category=NodeCategory.COMPUTE,
+                meta={"open_to_world": True},
+            ),
         ]
         graph = _build(nodes)
         findings = extract_findings(nodes, graph)
@@ -54,6 +69,7 @@ class TestPublicLB:
             Node(
                 id="alb-1",
                 kind=NodeKind.LOAD_BALANCER,
+                category=NodeCategory.LOAD_BALANCER,
                 flags=NodeFlags(internet_facing=True),
             ),
         ]
@@ -65,7 +81,7 @@ class TestPublicLB:
 
     def test_does_not_fire_on_private_lb(self) -> None:
         nodes = [
-            Node(id="alb-1", kind=NodeKind.LOAD_BALANCER),
+            Node(id="alb-1", kind=NodeKind.LOAD_BALANCER, category=NodeCategory.LOAD_BALANCER),
         ]
         graph = _build(nodes)
         findings = extract_findings(nodes, graph)
@@ -75,7 +91,12 @@ class TestPublicLB:
 class TestWildcardIAM:
     def test_fires_on_wildcard_policy(self) -> None:
         nodes = [
-            Node(id="pol-1", kind=NodeKind.IAM_POLICY, meta={"actions": ["*"]}),
+            Node(
+                id="pol-1",
+                kind=NodeKind.IAM_POLICY,
+                category=NodeCategory.IDENTITY,
+                meta={"actions": ["*"]},
+            ),
         ]
         graph = _build(nodes)
         findings = extract_findings(nodes, graph)
@@ -85,7 +106,12 @@ class TestWildcardIAM:
 
     def test_does_not_fire_on_scoped_policy(self) -> None:
         nodes = [
-            Node(id="pol-1", kind=NodeKind.IAM_POLICY, meta={"actions": ["s3:GetObject"]}),
+            Node(
+                id="pol-1",
+                kind=NodeKind.IAM_POLICY,
+                category=NodeCategory.IDENTITY,
+                meta={"actions": ["s3:GetObject"]},
+            ),
         ]
         graph = _build(nodes)
         findings = extract_findings(nodes, graph)
@@ -99,6 +125,7 @@ class TestPassRole:
             Node(
                 id="pol-1",
                 kind=NodeKind.IAM_POLICY,
+                category=NodeCategory.IDENTITY,
                 meta={"actions": ["iam:PassRole", "s3:GetObject"]},
             ),
         ]
@@ -109,7 +136,12 @@ class TestPassRole:
 
     def test_does_not_double_fire_with_wildcard(self) -> None:
         nodes = [
-            Node(id="pol-1", kind=NodeKind.IAM_POLICY, meta={"actions": ["*"]}),
+            Node(
+                id="pol-1",
+                kind=NodeKind.IAM_POLICY,
+                category=NodeCategory.IDENTITY,
+                meta={"actions": ["*"]},
+            ),
         ]
         graph = _build(nodes)
         findings = extract_findings(nodes, graph)
@@ -123,6 +155,7 @@ class TestDBPubliclyAccessible:
             Node(
                 id="db-1",
                 kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
                 flags=NodeFlags(crown_jewel=True),
                 meta={"publicly_accessible": True},
             ),
@@ -138,6 +171,7 @@ class TestDBPubliclyAccessible:
             Node(
                 id="db-1",
                 kind=NodeKind.DB_INSTANCE,
+                category=NodeCategory.DATABASE,
                 flags=NodeFlags(crown_jewel=True),
                 meta={"publicly_accessible": False},
             ),
@@ -149,7 +183,9 @@ class TestDBPubliclyAccessible:
 
 class TestNoFindings:
     def test_no_findings_for_internet_node(self) -> None:
-        nodes = [Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET)]
+        nodes = [
+            Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET, category=NodeCategory.INTERNET),
+        ]
         graph = _build(nodes)
         findings = extract_findings(nodes, graph)
         assert len(findings) == 0

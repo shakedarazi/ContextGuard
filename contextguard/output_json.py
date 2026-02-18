@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 import json
 from typing import TYPE_CHECKING
 
@@ -12,17 +11,12 @@ if TYPE_CHECKING:
 from contextguard.model import AnalysisResult
 
 
-def render_json(result: AnalysisResult, out_path: Path, plan: Path) -> Path:
+def render_json(result: AnalysisResult, out_path: Path) -> Path:
     """Write byte-deterministic report.json and return the written path."""
     from pathlib import Path as _Path
 
     sorted_result = _sort_for_determinism(result)
     data = sorted_result.model_dump(mode="json")
-    data["run"] = {
-        "timestamp_utc": datetime.datetime.utcnow().isoformat() + "Z",
-        "plan_path": str(_Path(str(plan)).resolve()),
-        "output_dir": str(_Path(str(out_path)).resolve()),
-    }
     _Path(str(out_path)).mkdir(parents=True, exist_ok=True)
     out_file = _Path(str(out_path), "report.json")
     out_file.write_text(
@@ -43,9 +37,17 @@ def _sort_for_determinism(result: AnalysisResult) -> AnalysisResult:
     for f in sorted_findings:
         f.breakpoints = sorted(f.breakpoints, key=lambda bp: bp.node_id)
 
+    sorted_attack_paths = sorted(
+        result.attack_paths,
+        key=lambda ap: (ap.hops, ap.path),
+    )
+    sorted_crown_jewel_ids = sorted(result.crown_jewel_ids)
+
     return AnalysisResult(
         nodes=sorted_nodes,
         edges=sorted_edges,
         findings=sorted_findings,
         stats=result.stats,
+        crown_jewel_ids=sorted_crown_jewel_ids,
+        attack_paths=sorted_attack_paths,
     )

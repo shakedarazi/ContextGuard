@@ -16,8 +16,8 @@ from contextguard.model import (
     Edge,
     EdgeType,
     Node,
+    NodeCategory,
     NodeFlags,
-    NodeKind,
 )
 
 
@@ -39,17 +39,19 @@ _ENGINE_DEFAULT_PORTS: dict[str, int] = {
     "sqlserver-web": 1433,
 }
 
-SUPPORTED_TYPES: dict[str, NodeKind] = {
-    "aws_security_group": NodeKind.SECURITY_GROUP,
-    "aws_lb": NodeKind.LOAD_BALANCER,
-    "aws_instance": NodeKind.INSTANCE,
-    "aws_autoscaling_group": NodeKind.AUTOSCALING_GROUP,
-    "aws_db_instance": NodeKind.DB_INSTANCE,
-    "aws_iam_role": NodeKind.IAM_ROLE,
-    "aws_iam_policy": NodeKind.IAM_POLICY,
-    "aws_iam_role_policy": NodeKind.IAM_POLICY,
-    "aws_iam_role_policy_attachment": NodeKind.IAM_POLICY,
-    "aws_iam_policy_attachment": NodeKind.IAM_POLICY,
+# Maps Terraform resource type → provider-agnostic NodeCategory.
+# Presence in this dict marks a type as "supported" (not skipped).
+SUPPORTED_TYPES: dict[str, NodeCategory] = {
+    "aws_security_group": NodeCategory.FIREWALL,
+    "aws_lb": NodeCategory.LOAD_BALANCER,
+    "aws_instance": NodeCategory.COMPUTE,
+    "aws_autoscaling_group": NodeCategory.COMPUTE,
+    "aws_db_instance": NodeCategory.DATABASE,
+    "aws_iam_role": NodeCategory.IDENTITY,
+    "aws_iam_policy": NodeCategory.IDENTITY,
+    "aws_iam_role_policy": NodeCategory.IDENTITY,
+    "aws_iam_role_policy_attachment": NodeCategory.IDENTITY,
+    "aws_iam_policy_attachment": NodeCategory.IDENTITY,
 }
 
 
@@ -69,12 +71,17 @@ def parse_plan(path: Path) -> AdapterOutput:
             skipped += 1
             continue
         supported += 1
-        kind = SUPPORTED_TYPES[rc_type]
+        category = SUPPORTED_TYPES[rc_type]
         address = rc.get("address", rc_type)
         values = _get_values(rc)
-        _extract_resource(address, kind, values, rc, nodes, edges)
+        _extract_resource(address, rc_type, category, values, rc, nodes, edges)
 
-    internet_node = Node(id=INTERNET_NODE_ID, kind=NodeKind.INTERNET)
+    internet_node = Node(
+        id=INTERNET_NODE_ID,
+        kind=INTERNET_NODE_ID,
+        category=NodeCategory.INTERNET,
+        provider="",
+    )
     nodes.insert(0, internet_node)
     _add_internet_edges(nodes, edges)
     _derive_forward_edges(nodes, edges)
@@ -134,30 +141,40 @@ def _get_values(rc: dict[str, Any]) -> dict[str, Any]:
 
 def _extract_resource(
     address: str,
-    kind: NodeKind,
+    rc_type: str,
+    category: NodeCategory,
     values: dict[str, Any],
     rc: dict[str, Any],
     nodes: list[Node],
     edges: list[Edge],
 ) -> None:
-    if kind == NodeKind.SECURITY_GROUP:
-        _extract_security_group(address, values, nodes, edges)
-    elif kind == NodeKind.LOAD_BALANCER:
-        _extract_load_balancer(address, values, nodes, edges)
-    elif kind == NodeKind.INSTANCE:
-        _extract_instance(address, values, nodes, edges)
-    elif kind == NodeKind.AUTOSCALING_GROUP:
-        _extract_autoscaling_group(address, values, nodes, edges)
-    elif kind == NodeKind.DB_INSTANCE:
-        _extract_db_instance(address, values, nodes, edges)
-    elif kind == NodeKind.IAM_ROLE:
-        _extract_iam_role(address, values, nodes, edges)
-    elif kind == NodeKind.IAM_POLICY:
-        _extract_iam_policy(address, values, rc, nodes, edges)
+    if rc_type == "aws_security_group":
+        _extract_security_group(address, category, values, nodes, edges)
+    elif rc_type == "aws_lb":
+        _extract_load_balancer(address, category, values, nodes, edges)
+    elif rc_type == "aws_instance":
+        _extract_instance(address, category, values, nodes, edges)
+    elif rc_type == "aws_autoscaling_group":
+        _extract_autoscaling_group(address, category, nodes)
+    elif rc_type == "aws_db_instance":
+        _extract_db_instance(address, category, values, nodes, edges)
+    elif rc_type == "aws_iam_role":
+        _extract_iam_role(address, category, values, nodes)
+    elif rc_type in (
+        "aws_iam_policy",
+        "aws_iam_role_policy",
+        "aws_iam_role_policy_attachment",
+        "aws_iam_policy_attachment",
+    ):
+        _extract_iam_policy(address, category, values, rc, nodes, edges)
 
 
 def _extract_security_group(
-    address: str, values: dict[str, Any], nodes: list[Node], edges: list[Edge]
+    address: str,
+    category: NodeCategory,
+    values: dict[str, Any],
+    nodes: list[Node],
+    edges: list[Edge],
 ) -> None:
     ingress_rules = values.get("ingress", [])
     open_to_world = False
@@ -201,14 +218,20 @@ def _extract_security_group(
     nodes.append(
         Node(
             id=address,
-            kind=NodeKind.SECURITY_GROUP,
+            kind="aws_security_group",
+            category=category,
+            provider="aws",
             meta={"open_to_world": open_to_world, "ingress_rules": canonical_rules},
         )
     )
 
 
 def _extract_load_balancer(
-    address: str, values: dict[str, Any], nodes: list[Node], edges: list[Edge]
+    address: str,
+    category: NodeCategory,
+    values: dict[str, Any],
+    nodes: list[Node],
+    edges: list[Edge],
 ) -> None:
     scheme = values.get("internal", False)
     is_public = not scheme
@@ -226,7 +249,9 @@ def _extract_load_balancer(
     nodes.append(
         Node(
             id=address,
-            kind=NodeKind.LOAD_BALANCER,
+            kind="aws_lb",
+            category=category,
+            provider="aws",
             flags=NodeFlags(internet_facing=is_public),
             meta={"sg_refs": sorted(sg_refs)},
         )
@@ -234,7 +259,11 @@ def _extract_load_balancer(
 
 
 def _extract_instance(
-    address: str, values: dict[str, Any], nodes: list[Node], edges: list[Edge]
+    address: str,
+    category: NodeCategory,
+    values: dict[str, Any],
+    nodes: list[Node],
+    edges: list[Edge],
 ) -> None:
     has_public_ip = values.get("associate_public_ip_address", False) is True
 
@@ -249,7 +278,9 @@ def _extract_instance(
     nodes.append(
         Node(
             id=address,
-            kind=NodeKind.INSTANCE,
+            kind="aws_instance",
+            category=category,
+            provider="aws",
             flags=NodeFlags(internet_facing=has_public_ip),
             meta={"sg_refs": sorted(sg_refs)},
         )
@@ -257,13 +288,19 @@ def _extract_instance(
 
 
 def _extract_autoscaling_group(
-    address: str, values: dict[str, Any], nodes: list[Node], edges: list[Edge]
+    address: str,
+    category: NodeCategory,
+    nodes: list[Node],
 ) -> None:
-    nodes.append(Node(id=address, kind=NodeKind.AUTOSCALING_GROUP))
+    nodes.append(Node(id=address, kind="aws_autoscaling_group", category=category, provider="aws"))
 
 
 def _extract_db_instance(
-    address: str, values: dict[str, Any], nodes: list[Node], edges: list[Edge]
+    address: str,
+    category: NodeCategory,
+    values: dict[str, Any],
+    nodes: list[Node],
+    edges: list[Edge],
 ) -> None:
     publicly_accessible = values.get("publicly_accessible", False) is True
 
@@ -289,7 +326,9 @@ def _extract_db_instance(
     nodes.append(
         Node(
             id=address,
-            kind=NodeKind.DB_INSTANCE,
+            kind="aws_db_instance",
+            category=category,
+            provider="aws",
             flags=NodeFlags(crown_jewel=True),
             meta=meta,
         )
@@ -297,12 +336,17 @@ def _extract_db_instance(
 
 
 def _extract_iam_role(
-    address: str, values: dict[str, Any], nodes: list[Node], edges: list[Edge]
+    address: str,
+    category: NodeCategory,
+    values: dict[str, Any],
+    nodes: list[Node],
 ) -> None:
     nodes.append(
         Node(
             id=address,
-            kind=NodeKind.IAM_ROLE,
+            kind="aws_iam_role",
+            category=category,
+            provider="aws",
             meta={"assume_role_policy": values.get("assume_role_policy")},
         )
     )
@@ -310,6 +354,7 @@ def _extract_iam_role(
 
 def _extract_iam_policy(
     address: str,
+    category: NodeCategory,
     values: dict[str, Any],
     rc: dict[str, Any],
     nodes: list[Node],
@@ -337,7 +382,9 @@ def _extract_iam_policy(
     nodes.append(
         Node(
             id=address,
-            kind=NodeKind.IAM_POLICY,
+            kind=rc_type,
+            category=category,
+            provider="aws",
             meta={"actions": actions},
         )
     )
@@ -372,7 +419,8 @@ def _extract_policy_actions(values: dict[str, Any]) -> list[str]:
 def _add_internet_edges(nodes: list[Node], edges: list[Edge]) -> None:
     """Add network_exposure edges from INTERNET to true entrypoints only."""
     for node in nodes:
-        if node.kind in (NodeKind.LOAD_BALANCER, NodeKind.INSTANCE) and node.flags.internet_facing:
+        is_entrypoint = node.category in (NodeCategory.LOAD_BALANCER, NodeCategory.COMPUTE)
+        if is_entrypoint and node.flags.internet_facing:
             edges.append(
                 Edge(from_id=INTERNET_NODE_ID, to_id=node.id, type=EdgeType.NETWORK_EXPOSURE)
             )
@@ -381,10 +429,10 @@ def _add_internet_edges(nodes: list[Node], edges: list[Edge]) -> None:
 def _build_sg_ingress_index(
     nodes: list[Node],
 ) -> dict[str, list[dict[str, object]]]:
-    """Map SG node ID → sorted canonical ingress rules."""
+    """Map firewall node ID → sorted canonical ingress rules."""
     index: dict[str, list[dict[str, object]]] = {}
     for node in nodes:
-        if node.kind == NodeKind.SECURITY_GROUP and node.meta:
+        if node.category == NodeCategory.FIREWALL and node.meta:
             rules = node.meta.get("ingress_rules", [])
             if isinstance(rules, list):
                 index[node.id] = rules
@@ -392,7 +440,7 @@ def _build_sg_ingress_index(
 
 
 def _build_node_sg_index(nodes: list[Node]) -> dict[str, list[str]]:
-    """Map node ID → sorted list of attached SG addresses."""
+    """Map node ID → sorted list of attached firewall/SG addresses."""
     index: dict[str, list[str]] = {}
     for node in nodes:
         if node.meta and "sg_refs" in node.meta:
@@ -447,9 +495,9 @@ def _derive_forward_edges(nodes: list[Node], edges: list[Edge]) -> None:
     sg_ingress = _build_sg_ingress_index(nodes)
     node_sgs = _build_node_sg_index(nodes)
 
-    lbs = sorted((n for n in nodes if n.kind == NodeKind.LOAD_BALANCER), key=lambda n: n.id)
-    instances = sorted((n for n in nodes if n.kind == NodeKind.INSTANCE), key=lambda n: n.id)
-    dbs = sorted((n for n in nodes if n.kind == NodeKind.DB_INSTANCE), key=lambda n: n.id)
+    lbs = sorted((n for n in nodes if n.category == NodeCategory.LOAD_BALANCER), key=lambda n: n.id)
+    instances = sorted((n for n in nodes if n.category == NodeCategory.COMPUTE), key=lambda n: n.id)
+    dbs = sorted((n for n in nodes if n.category == NodeCategory.DATABASE), key=lambda n: n.id)
 
     # LB → Instance (FORWARD_REACHABILITY, MEDIUM)
     for lb in lbs:
