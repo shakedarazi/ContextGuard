@@ -95,6 +95,10 @@ For CRITICAL findings, the report includes contextual insights explaining why th
 > - This finding is critical because it sits on a 3-hop path from the internet to a crown jewel.
 > - Applying controls at alb-web would break this attack path.
 
+### Evidence-Based Reachability
+
+Forward edges (LB → Instance, Instance → DB) are derived from explicit Security Group ingress rules, not inferred from shared membership or subnet co-residency. Each derived edge includes confidence level and the exact SG rule evidence used, making every reachability claim auditable and debuggable.
+
 ### CI Gating
 
 Exit codes designed for CI pipelines:

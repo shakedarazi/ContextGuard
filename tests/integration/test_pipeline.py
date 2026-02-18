@@ -124,3 +124,92 @@ class TestCaseInsensitiveFailOn:
             ],
         )
         assert result.exit_code == 0
+
+
+class TestAttackPath:
+    """E2E test for the attackpath-plan.json fixture — validates SC-1 through SC-7."""
+
+    def test_critical_findings_and_attack_path(self, tmp_path: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["analyze", "--plan", str(FIXTURES / "attackpath-plan.json"), "--out", str(tmp_path)],
+        )
+
+        # SC-5: exit code 1 (CRITICAL breaches gate)
+        assert result.exit_code == 1
+
+        report_json = tmp_path / "report.json"
+        assert report_json.exists()
+        data = json.loads(report_json.read_text(encoding="utf-8"))
+        parsed = AnalysisResult.model_validate(data)
+
+        # SC-1: at least 1 CRITICAL finding
+        critical_findings = [
+            f for f in parsed.findings if f.context_severity == "CRITICAL"
+        ]
+        assert len(critical_findings) >= 1
+
+        # SC-2: at least 1 CRITICAL finding has attack_path starting with __internet__
+        # and ending with a crown-jewel node
+        crown_jewel_ids = {n.id for n in parsed.nodes if n.flags.crown_jewel}
+        paths_valid = [
+            f
+            for f in critical_findings
+            if f.attack_path
+            and f.attack_path[0] == "__internet__"
+            and f.attack_path[-1] in crown_jewel_ids
+        ]
+        assert len(paths_valid) >= 1
+
+        # SC-3: at least 1 CRITICAL finding has non-empty breakpoints,
+        # each breakpoint node_id is an intermediate on the attack path
+        bp_valid = [
+            f
+            for f in critical_findings
+            if f.breakpoints
+            and all(bp.node_id in f.attack_path[1:-1] for bp in f.breakpoints)
+        ]
+        assert len(bp_valid) >= 1
+
+        # SC-4: report.md contains "What you learned"
+        report_md = tmp_path / "report.md"
+        assert report_md.exists()
+        md_text = report_md.read_text(encoding="utf-8")
+        assert "What you learned" in md_text
+
+        # SC-7: at least 1 edge has type forward_reachability with non-null meta
+        forward_edges = [
+            e
+            for e in parsed.edges
+            if e.type == "forward_reachability" and e.meta is not None
+        ]
+        assert len(forward_edges) >= 1
+
+    def test_json_determinism(self, tmp_path: Path) -> None:
+        """SC-6: byte-identical JSON across two runs."""
+        out1 = tmp_path / "run1"
+        out2 = tmp_path / "run2"
+        runner.invoke(
+            app,
+            ["analyze", "--plan", str(FIXTURES / "attackpath-plan.json"), "--out", str(out1)],
+        )
+        runner.invoke(
+            app,
+            ["analyze", "--plan", str(FIXTURES / "attackpath-plan.json"), "--out", str(out2)],
+        )
+        json1 = (out1 / "report.json").read_text(encoding="utf-8")
+        json2 = (out2 / "report.json").read_text(encoding="utf-8")
+        assert json1 == json2
+
+    def test_fail_on_critical_and_high(self, tmp_path: Path) -> None:
+        """--fail-on uses exact match; CRITICAL,HIGH catches CRITICAL findings."""
+        result = runner.invoke(
+            app,
+            [
+                "analyze",
+                "--plan", str(FIXTURES / "attackpath-plan.json"),
+                "--out", str(tmp_path),
+                "--fail-on", "CRITICAL,HIGH",
+            ],
+        )
+        assert result.exit_code == 1

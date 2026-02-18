@@ -25,6 +25,7 @@ class EdgeType(StrEnum):
     IAM_BINDING = "iam_binding"
     DATA_ACCESS = "data_access"
     ASSOCIATION = "association"
+    FORWARD_REACHABILITY = "forward_reachability"
 
 
 class Severity(StrEnum):
@@ -63,6 +64,7 @@ class Edge(BaseModel):
     from_id: str
     to_id: str
     type: EdgeType
+    meta: dict[str, object] | None = None
 
 
 class Breakpoint(BaseModel):
