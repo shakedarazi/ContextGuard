@@ -136,6 +136,28 @@ The following are intentional v1 limitations, not bugs:
 - **No network-layer modeling:** Route tables, NACLs, VPC peering, Transit Gateway, PrivateLink, and DNS are not modeled.
 - **Unknown DB engine → no edge:** If a DB instance has no `engine` field and no explicit `port` attribute, no Instance→DB edge is derived (safe false-negative by design).
 
+##🔭 Vision
+
+ContextGuard aims to evolve from Terraform misconfiguration analysis into a deterministic cloud attack-path reasoning engine.
+
+v1 establishes a security-correct foundation: evidence-based forward reachability derived strictly from Security Group ingress rules, graph-based exploitability scoring, and actionable breakpoint recommendations.
+
+Future iterations expand the model beyond SG-only inference toward richer infrastructure reasoning:
+
+Target-group–aware load balancer modeling
+
+Subnet, route-table, and NACL isolation analysis
+
+Cross-VPC and cross-account attack path stitching
+
+Deeper IAM privilege escalation chains
+
+Multi-provider adapters (CloudFormation, Kubernetes, Azure, GCP)
+
+SARIF-native output for enterprise security pipelines
+
+The long-term objective is to make cloud infrastructure security explainable, deterministic, and attack-path aware — transforming IaC scanning from static misconfiguration listing into contextual cloud threat modeling.
+
 ## Configuration
 
 Create `contextguard.yml`:
