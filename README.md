@@ -31,39 +31,36 @@ contextguard analyze --plan tfplan.json
 
 ```mermaid
 flowchart LR
-subgraph input [Input]
-    TF["tfplan.json"]
-    CFG["contextguard.yml"]
+  subgraph Input
+    A["Terraform Plan (tfplan.json)"]
+    B["Policy (crown jewels + gate thresholds)"]
   end
 
-  subgraph adapt [Adapter Layer]
-    TA["file_adapter.py"]
+  subgraph Normalize["Normalization Layer"]
+    C["Adapter: parse + normalize to canonical assets & relationships"]
   end
 
-  subgraph core [Core Engine]
-    M["model.py (canonical types)"]
-    G["graph.py (reachability)"]
-    F["findings.py (static rules)"]
-    S["scoring.py (context engine)"]
+  subgraph Reason["Reasoning Engine"]
+    D["Reachability Graph: build + derive edges + compute internet reachability"]
+    E["Misconfiguration Detection: static rules → base findings"]
+    F["Contextual Risk Engine: exploitability scoring + attack paths + breakpoints"]
   end
 
-  subgraph out [Reporting]
-    CON["Console"]
-    MD["report.md"]
-    JS["report.json"]
+  subgraph Output
+    G["Console: fast triage"]
+    H["Markdown: explainable report"]
+    I["JSON: deterministic integration"]
   end
 
-  TF --> TA
-  TA --> M
-  M --> G
-  G --> F
-  G --> S
-  F --> S
-  CFG --> S
-
-  S --> CON
-  S --> MD
-  S --> JS
+  A --> C
+  C --> D
+  C --> E
+  D --> F
+  E --> F
+  B --> F
+  F --> G
+  F --> H
+  F --> I
 ```
 
 **Pipeline:** Parse plan → build graph with INTERNET sentinel node → derive forward edges from SG ingress rules → BFS reachability → extract findings → contextual severity scoring → recommend breakpoints → generate reports.
