@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from contextguard.findings import extract_findings
-from contextguard.graph import Graph, build_graph
-from contextguard.model import (
+from contextguard.core.findings import extract_findings
+from contextguard.core.graph import Graph, build_graph
+from contextguard.core.model import (
     INTERNET_NODE_ID,
     CanonicalAction,
     Edge,

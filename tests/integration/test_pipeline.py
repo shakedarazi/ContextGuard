@@ -9,7 +9,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from contextguard.cli import app
-from contextguard.model import AnalysisResult
+from contextguard.core.model import AnalysisResult
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 runner = CliRunner()
@@ -276,24 +276,24 @@ class TestBoundaryEnforcement:
     """Verify architectural boundaries are enforced across modules."""
 
     _OUTPUT_MODULES = [
-        Path(__file__).parent.parent.parent / "contextguard" / "output_markdown.py",
-        Path(__file__).parent.parent.parent / "contextguard" / "output_json.py",
-        Path(__file__).parent.parent.parent / "contextguard" / "output_console.py",
-        Path(__file__).parent.parent.parent / "contextguard" / "output_run_metadata.py",
+        Path(__file__).parent.parent.parent / "contextguard" / "outputs" / "output_markdown.py",
+        Path(__file__).parent.parent.parent / "contextguard" / "outputs" / "output_json.py",
+        Path(__file__).parent.parent.parent / "contextguard" / "outputs" / "output_console.py",
+        Path(__file__).parent.parent.parent / "contextguard" / "outputs" / "output_run_metadata.py",
     ]
 
     _ANALYSIS_MODULES = [
-        Path(__file__).parent.parent.parent / "contextguard" / "findings.py",
-        Path(__file__).parent.parent.parent / "contextguard" / "scoring.py",
+        Path(__file__).parent.parent.parent / "contextguard" / "core" / "findings.py",
+        Path(__file__).parent.parent.parent / "contextguard" / "core" / "scoring.py",
     ]
 
     _ADAPTER_MODULES = [
-        Path(__file__).parent.parent.parent / "contextguard" / "terraform_adapter.py",
+        Path(__file__).parent.parent.parent / "contextguard" / "adapters" / "terraform_aws.py",
     ]
 
     def test_no_forbidden_imports(self) -> None:
         """Output modules must not import graph or scoring."""
-        forbidden = {"contextguard.graph", "contextguard.scoring"}
+        forbidden = {"contextguard.core.graph", "contextguard.core.scoring"}
         for module_path in self._OUTPUT_MODULES:
             source = module_path.read_text(encoding="utf-8")
             tree = ast.parse(source, filename=str(module_path))
@@ -312,12 +312,12 @@ class TestBoundaryEnforcement:
     def test_adapters_no_analysis_imports(self) -> None:
         """Adapters must not import findings, scoring, or output modules."""
         forbidden = {
-            "contextguard.findings",
-            "contextguard.scoring",
-            "contextguard.output_markdown",
-            "contextguard.output_json",
-            "contextguard.output_console",
-            "contextguard.output_run_metadata",
+            "contextguard.core.findings",
+            "contextguard.core.scoring",
+            "contextguard.outputs.output_markdown",
+            "contextguard.outputs.output_json",
+            "contextguard.outputs.output_console",
+            "contextguard.outputs.output_run_metadata",
         }
         for module_path in self._ADAPTER_MODULES:
             source = module_path.read_text(encoding="utf-8")
@@ -336,7 +336,7 @@ class TestBoundaryEnforcement:
 
     def test_analysis_no_adapter_imports(self) -> None:
         """Analysis modules must not import adapters."""
-        forbidden = {"contextguard.terraform_adapter", "contextguard.adapter_protocol"}
+        forbidden = {"contextguard.adapters.terraform_aws", "contextguard.adapters.adapter_protocol"}
         for module_path in self._ANALYSIS_MODULES:
             source = module_path.read_text(encoding="utf-8")
             tree = ast.parse(source, filename=str(module_path))

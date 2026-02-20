@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-from contextguard.config import load_config
-from contextguard.model import NodeKind, Severity
+from contextguard.core.model import NodeKind, Severity
+from contextguard.policy.config import load_config
 
 
 class TestDefaults:

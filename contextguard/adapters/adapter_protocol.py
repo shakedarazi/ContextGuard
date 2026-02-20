@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from contextguard.model import AdapterOutput
+    from contextguard.core.model import AdapterOutput
 
 
 class IacAdapter(Protocol):
@@ -31,7 +31,7 @@ class TerraformAwsAdapter:
         return [".json"]
 
     def parse(self, path):  # type: ignore[no-untyped-def]
-        from contextguard.terraform_adapter import parse_plan
+        from contextguard.adapters.terraform_aws import parse_plan
         
         return parse_plan(path)
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from contextguard.model import INTERNET_NODE_ID, Edge, EdgeType, Node, NodeCategory, NodeFlags, NodeKind
-from contextguard.terraform_adapter import _derive_forward_edges
+from contextguard.adapters.terraform_aws import _derive_forward_edges
+from contextguard.core.model import INTERNET_NODE_ID, Edge, EdgeType, Node, NodeCategory, NodeFlags, NodeKind
 
 
 def _sg(

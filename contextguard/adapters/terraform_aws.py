@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
-from contextguard.logger import logger
-from contextguard.model import (
+from contextguard.core.model import (
     INTERNET_NODE_ID,
     AdapterOutput,
     AdapterStats,
@@ -20,6 +19,7 @@ from contextguard.model import (
     NodeCategory,
     NodeFlags,
 )
+from contextguard.utils.logger import logger
 
 
 class ParseError(Exception):

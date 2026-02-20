@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from contextguard.model import INTERNET_NODE_ID, EdgeType, NodeCategory
-from contextguard.terraform_adapter import ParseError, parse_plan
+from contextguard.adapters.terraform_aws import ParseError, parse_plan
+from contextguard.core.model import INTERNET_NODE_ID, EdgeType, NodeCategory
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 

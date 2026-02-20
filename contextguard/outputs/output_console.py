@@ -6,9 +6,9 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from contextguard.model import AnalysisResult
+    from contextguard.core.model import AnalysisResult
 
-from contextguard.model import Severity
+from contextguard.core.model import Severity
 
 
 def render_console(result: AnalysisResult, gate_passed: bool) -> None:

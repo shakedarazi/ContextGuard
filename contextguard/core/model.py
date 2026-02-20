@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -93,7 +94,7 @@ class Node(BaseModel):
     meta: dict[str, object] | None = None
     canonical_actions: set[CanonicalAction] = Field(default_factory=set)
 
-    def model_dump(self, **kwargs):  # type: ignore[override]
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
         """Override to ensure canonical_actions serializes deterministically."""
         d = super().model_dump(**kwargs)
         if "canonical_actions" in d and isinstance(d["canonical_actions"], set):

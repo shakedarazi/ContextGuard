@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from contextguard.model import Edge, Node
+    from contextguard.core.model import Edge, Node
 
 
 @dataclass

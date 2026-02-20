@@ -5,8 +5,8 @@ from __future__ import annotations
 # ARCHITECTURAL BOUNDARY: This module must remain provider-agnostic.
 # Do not introduce provider-specific strings or assumptions about providers.
 # Depend only on canonical model types and graph relationships.
-from contextguard.graph import BfsResult, Graph, bfs, shortest_path
-from contextguard.model import (
+from contextguard.core.graph import BfsResult, Graph, bfs, shortest_path
+from contextguard.core.model import (
     Breakpoint,
     BreakpointType,
     CanonicalAction,
@@ -124,14 +124,15 @@ def _apply_severity_override(
             full_path = path_to_node + best_cj_path[1:]  # Skip duplicate node_id
             finding.context_severity = Severity.CRITICAL
             finding.override_reason = (
-                f"IAM policy with crown jewel impact actions, reachable path ({len(full_path) - 1} hops)"
+                f"IAM policy with crown jewel impact actions, "
+                f"reachable path ({len(full_path) - 1} hops)"
             )
             finding.attack_path = full_path
             finding.shortest_path_length = len(full_path) - 1
             return
 
     # For non-IAM or IAM without impact: compute path from node to crown jewel
-    best_cj_path: list[str] = []
+    best_cj_path = []
     best_cj_hops = float("inf")
     
     for cj_id in crown_jewel_ids:

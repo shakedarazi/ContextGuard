@@ -9,22 +9,22 @@ from typing import Annotated
 
 import typer
 
-from contextguard.adapter_protocol import get_adapter
-from contextguard.config import load_config
-from contextguard.findings import extract_findings
-from contextguard.graph import bfs, build_graph
-from contextguard.model import (
+from contextguard.adapters.adapter_protocol import get_adapter
+from contextguard.adapters.terraform_aws import ParseError
+from contextguard.core.findings import extract_findings
+from contextguard.core.graph import bfs, build_graph
+from contextguard.core.model import (
     INTERNET_NODE_ID,
     AnalysisResult,
     AttackPath,
     Severity,
 )
-from contextguard.output_console import render_console
-from contextguard.output_json import render_json
-from contextguard.output_markdown import render_markdown
-from contextguard.output_run_metadata import write_run_metadata
-from contextguard.scoring import score_findings
-from contextguard.terraform_adapter import ParseError
+from contextguard.core.scoring import score_findings
+from contextguard.outputs.output_console import render_console
+from contextguard.outputs.output_json import render_json
+from contextguard.outputs.output_markdown import render_markdown
+from contextguard.outputs.output_run_metadata import write_run_metadata
+from contextguard.policy.config import load_config
 
 app = typer.Typer(no_args_is_help=True)
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from contextguard.graph import bfs, build_graph
-from contextguard.model import (
+from contextguard.core.graph import bfs, build_graph
+from contextguard.core.model import (
     INTERNET_NODE_ID,
     CanonicalAction,
     ContextGuardConfig,
@@ -17,7 +17,7 @@ from contextguard.model import (
     NodeKind,
     Severity,
 )
-from contextguard.scoring import score_findings
+from contextguard.core.scoring import score_findings
 
 
 def _finding(

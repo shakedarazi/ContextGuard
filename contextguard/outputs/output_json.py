@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-from contextguard.model import AnalysisResult
+from contextguard.core.model import AnalysisResult
 
 
 def render_json(result: AnalysisResult, out_path: Path) -> Path:

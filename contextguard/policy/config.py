@@ -10,8 +10,8 @@ if TYPE_CHECKING:
 import yaml
 from pydantic import ValidationError
 
-from contextguard.logger import logger
-from contextguard.model import ContextGuardConfig
+from contextguard.core.model import ContextGuardConfig
+from contextguard.utils.logger import logger
 
 
 def load_config(path: Path | None = None) -> ContextGuardConfig:

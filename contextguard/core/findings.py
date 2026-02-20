@@ -6,13 +6,13 @@ import hashlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from contextguard.graph import Graph
+    from contextguard.core.graph import Graph
 
 # ARCHITECTURAL BOUNDARY: This module must remain provider-agnostic.
 # Do not introduce provider-specific strings (e.g., "iam:PassRole", "rds:*")
 # or source-specific logic here. Use canonical types from model.py only.
 
-from contextguard.model import (
+from contextguard.core.model import (
     CanonicalAction,
     Finding,
     FindingCategory,
