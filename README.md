@@ -31,20 +31,23 @@ contextguard analyze --plan tfplan.json
 
 ```mermaid
 flowchart LR
-  subgraph input [Input]
+subgraph input [Input]
     TF["tfplan.json"]
     CFG["contextguard.yml"]
   end
-  subgraph adapt [Adapter]
-    TA["terraform_adapter.py"]
+
+  subgraph adapt [Adapter Layer]
+    TA["file_adapter.py"]
   end
-  subgraph core [Core]
-    M["model.py"]
-    G["graph.py"]
-    F["findings.py"]
-    S["scoring.py"]
+
+  subgraph core [Core Engine]
+    M["model.py (canonical types)"]
+    G["graph.py (reachability)"]
+    F["findings.py (static rules)"]
+    S["scoring.py (context engine)"]
   end
-  subgraph out [Output]
+
+  subgraph out [Reporting]
     CON["Console"]
     MD["report.md"]
     JS["report.json"]
@@ -52,10 +55,12 @@ flowchart LR
 
   TF --> TA
   TA --> M
-  CFG --> S
   M --> G
   G --> F
+  G --> S
   F --> S
+  CFG --> S
+
   S --> CON
   S --> MD
   S --> JS
