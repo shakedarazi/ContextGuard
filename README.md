@@ -66,16 +66,49 @@ ContextGuard doesn't just tell you what's wrong — it tells you **why it matter
 
 ## 🚀 Quick Start
 
-```bash
-# Install (from local checkout)
-pipx install .
+### Prerequisites
 
-# Generate a Terraform plan
+- **Python 3.11+**
+- **Terraform CLI** (to generate a plan JSON)
+
+### Installation
+
+```bash
+pip install .                # standard install
+# or
+pipx install .               # isolated install
+# or
+pip install -e .             # editable (for development)
+```
+
+You can also run without installing:
+
+```bash
+python -m contextguard --help
+```
+
+### Try it now
+
+The repo ships an example plan you can use immediately:
+
+```bash
+contextguard analyze --plan examples/sample-tfplan.json --out ./reports
+```
+
+### Full workflow
+
+```bash
+# 1. Generate a Terraform plan
 terraform plan -out=tfplan.bin
 terraform show -json tfplan.bin > tfplan.json
 
-# Analyze
-contextguard analyze --plan tfplan.json
+# 2. Analyze
+contextguard analyze --plan tfplan.json --out ./reports
+
+# 3. Review
+#    ./reports/report.md          — human-readable Markdown report
+#    ./reports/report.json        — machine-readable JSON report
+#    ./reports/run-metadata.json  — timestamp, paths, run context
 ```
 
 ---
@@ -164,10 +197,11 @@ Exit codes designed for CI pipelines:
 | 1 | Security gate breached |
 | 2 | Input error |
 
-Override gating at runtime:
+Example GitHub Actions step:
 
-```bash
-contextguard analyze --plan tfplan.json --fail-on critical,high
+```yaml
+- name: ContextGuard scan
+  run: contextguard analyze --plan tfplan.json --out ./reports --fail-on critical,high
 ```
 
 ---
@@ -186,7 +220,7 @@ Unknown resources are safely skipped and counted.
 
 ## 🔧 Configuration
 
-Create a `contextguard.yml`:
+Create a `contextguard.yml` (see `examples/contextguard.yml`):
 
 ```yaml
 crown_jewels:
@@ -206,15 +240,16 @@ Configuration is optional — sensible defaults are applied when no config file 
 ## 📖 CLI Reference
 
 ```
-contextguard analyze --plan <path> [--config <path>] [--out <dir>] [--fail-on <severities>] [--verbose]
+contextguard analyze --plan <path> [--config <path>] [--out <dir>] [--fail-on <severities>] [--no-mermaid] [--verbose]
 ```
 
 | Option | Description |
-| ----------- | -------------------------------------------------------- |
+| ------------- | -------------------------------------------------------- |
 | `--plan` | Path to Terraform plan JSON (required) |
 | `--config` | Path to contextguard.yml |
 | `--out` | Output directory for reports (default: `.`) |
 | `--fail-on` | Comma-separated severities to gate on (case-insensitive) |
+| `--no-mermaid` | Suppress Mermaid diagram in report.md |
 | `--verbose` | Enable debug logging |
 
 ---
