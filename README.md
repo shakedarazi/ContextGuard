@@ -1,17 +1,74 @@
 # ContextGuard
 
-**IaC Attack Path Prioritizer** — contextual risk scoring for Terraform plans.
+**IaC Attack Path Prioritizer** — 
+Deterministic, graph-based risk reasoning for Terraform plans.
 
-Static IaC scanners flag misconfigurations in isolation. ContextGuard builds a reachability graph from your Terraform plan, scores findings based on whether an attacker can actually reach the vulnerability from the internet and pivot to crown jewels, and tells you exactly where to break the attack path.
+Static IaC scanners list misconfigurations.
+ContextGuard asks a harder question:
 
-## Why This Is Different
+Can an attacker actually reach this from the internet — and pivot to something that matters?
 
-A security group open to 0.0.0.0/0 is always flagged HIGH by traditional scanners. But:
+Instead of flagging resources in isolation, ContextGuard builds a reachability graph from your Terraform plan and scores findings based on exploitability in context.
 
-- If it's attached to an internal-only instance behind a private LB → **noise**.
-- If it's on a public ALB, 2 hops from your production database → **critical**.
 
-ContextGuard knows the difference. It performs graph-based reachability analysis to determine what actually matters.
+## The Problem
+Traditional scanners operate per-resource.
+
+They will flag:
+
+A security group open to 0.0.0.0/0
+
+A wildcard IAM policy
+
+A publicly accessible database
+
+But they don’t answer:
+
+Is this reachable from the internet?
+
+Can it pivot to a production database?
+
+Does it actually form a viable attack path?
+
+This creates alert fatigue — engineers are forced to manually reason about reachability and blast radius.
+
+## What ContextGuard Does Differently
+
+ContextGuard converts your Terraform plan into a directed reachability graph:
+
+INTERNET → Load Balancer → Instance → Database (👑 Crown Jewel)
+
+
+Every finding goes through two stages:
+
+Base severity (static misconfiguration rule)
+
+Contextual override (graph-based exploitability)
+
+This means:
+
+Not reachable from the internet → downgraded to NOISE
+
+Reachable but no path to sensitive asset → capped at HIGH
+
+Short path to crown jewel (≤ 3 hops) → escalated to CRITICAL
+
+IAM privilege escalation impacting crown jewels → forced CRITICAL
+
+ContextGuard doesn’t just tell you what’s wrong.
+It tells you why it matters — or why it doesn’t.
+
+
+## Key Design Principles
+Evidence only — no heuristic inference
+
+Deterministic output — same input → same JSON
+
+Provider-agnostic core — adapters isolated from engine
+
+Security as enforcement — CI exit codes, not suggestions
+
+Actionable remediation — breakpoints, not vague advice
 
 ## Quick Start
 
@@ -89,12 +146,12 @@ Each recommendation is tailored to the node kind (load balancer, security group,
 
 ### "What You Learned" Insights
 
-For CRITICAL findings, the report includes contextual insights explaining why the finding is critical — not just what the misconfiguration is, but what the graph reveals:
+For critical exposures, reports include contextual insight:
 
-> **What you learned**
->
-> - This finding is critical because it sits on a 3-hop path from the internet to a crown jewel.
-> - Applying controls at alb-web would break this attack path.
+This database is not just public — it sits 3 hops from the internet via alb-web.
+Applying a control at alb-web breaks this attack path entirely.
+
+This transforms findings from static violations into explainable risk narratives.
 
 ### Evidence-Based Reachability
 
@@ -126,38 +183,6 @@ contextguard analyze --plan tfplan.json --fail-on critical,high
 
 Unknown resources are safely skipped and counted.
 
-## v1 Scope Boundaries
-
-The following are intentional v1 limitations, not bugs:
-
-- **AWS-only adapter:** Non-AWS resources (AzureRM, GCP, Kubernetes, etc.) are gracefully skipped and counted in `stats.skipped`. No findings are produced for skipped resources.
-- **SG-evidence-only forward edges:** Forward reachability (LB→Instance, Instance→DB) requires explicit SG ingress rules referencing a source security group. No inference from shared subnets, VPC co-residency, or SG membership alone.
-- **Terraform address references only:** AWS SG IDs (`sg-...`) appearing in plan JSON are not resolved in v1 and are silently skipped (safe false-negative by design).
-- **No target-group modeling:** LB→Instance edges use SG ingress rule evidence (MEDIUM confidence). Target-group-based derivation (HIGH confidence) is a post-v1 enhancement.
-- **No network-layer modeling:** Route tables, NACLs, VPC peering, Transit Gateway, PrivateLink, and DNS are not modeled.
-- **Unknown DB engine → no edge:** If a DB instance has no `engine` field and no explicit `port` attribute, no Instance→DB edge is derived (safe false-negative by design).
-
-##🔭 Vision
-
-ContextGuard aims to evolve from Terraform misconfiguration analysis into a deterministic cloud attack-path reasoning engine.
-
-v1 establishes a security-correct foundation: evidence-based forward reachability derived strictly from Security Group ingress rules, graph-based exploitability scoring, and actionable breakpoint recommendations.
-
-Future iterations expand the model beyond SG-only inference toward richer infrastructure reasoning:
-
-Target-group–aware load balancer modeling
-
-Subnet, route-table, and NACL isolation analysis
-
-Cross-VPC and cross-account attack path stitching
-
-Deeper IAM privilege escalation chains
-
-Multi-provider adapters (CloudFormation, Kubernetes, Azure, GCP)
-
-SARIF-native output for enterprise security pipelines
-
-The long-term objective is to make cloud infrastructure security explainable, deterministic, and attack-path aware — transforming IaC scanning from static misconfiguration listing into contextual cloud threat modeling.
 
 ## Configuration
 
@@ -196,5 +221,5 @@ contextguard analyze --plan <path> [--config <path>] [--out <dir>] [--fail-on <s
 uv sync --dev
 uv run ruff check contextguard/
 uv run mypy contextguard/
-uv run pytest --tb=short  # 81 tests
+uv run pytest --tb=short  # 90 tests
 ```
