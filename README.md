@@ -1,6 +1,6 @@
 # 🛡️ ContextGuard
 
-**IaC Attack Path Prioritizer** — Deterministic, graph-based risk reasoning for Terraform plans.
+**IaC Attack Path Prioritizer** — Deterministic, graph-based risk reasoning for IaC plans.
 
 Static IaC scanners list misconfigurations. ContextGuard asks a harder question:
 
